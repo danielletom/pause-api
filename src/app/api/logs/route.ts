@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { dailyLogs } from '@/db/schema';
-import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { eq, and, gte, desc } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   const { userId } = await auth();
@@ -13,10 +13,12 @@ export async function GET(request: NextRequest) {
   const range = searchParams.get('range') || '28d';
 
   if (date) {
-    const log = await db.query.dailyLogs.findFirst({
+    // Return ALL entries for this date (multiple check-ins per day)
+    const logs = await db.query.dailyLogs.findMany({
       where: and(eq(dailyLogs.userId, userId), eq(dailyLogs.date, date)),
+      orderBy: [desc(dailyLogs.loggedAt)],
     });
-    return NextResponse.json(log || null);
+    return NextResponse.json(logs);
   }
 
   const days = parseInt(range) || 28;
@@ -28,7 +30,7 @@ export async function GET(request: NextRequest) {
       eq(dailyLogs.userId, userId),
       gte(dailyLogs.date, startDate.toISOString().split('T')[0]),
     ),
-    orderBy: [desc(dailyLogs.date)],
+    orderBy: [desc(dailyLogs.date), desc(dailyLogs.loggedAt)],
   });
 
   return NextResponse.json(logs);
@@ -54,6 +56,7 @@ export async function POST(request: NextRequest) {
       contextTags: body.contextTags || [],
       cycleDataJson: body.cycleData,
       notes: body.notes,
+      logType: body.logType || null,
     })
     .returning();
 

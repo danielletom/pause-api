@@ -40,6 +40,13 @@ export async function POST(request: NextRequest) {
         symptoms: body.symptoms ?? existing.symptoms,
         goals: body.goals ?? existing.goals,
         onboardingComplete: body.onboardingComplete ?? existing.onboardingComplete,
+        customSymptoms: body.customSymptoms ?? existing.customSymptoms,
+        height: body.height ?? existing.height,
+        weight: body.weight ?? existing.weight,
+        relationship: body.relationship ?? existing.relationship,
+        workStatus: body.workStatus ?? existing.workStatus,
+        children: body.children ?? existing.children,
+        exerciseFrequency: body.exerciseFrequency ?? existing.exerciseFrequency,
       })
       .where(eq(profiles.userId, userId))
       .returning();
@@ -57,6 +64,13 @@ export async function POST(request: NextRequest) {
       symptoms: body.symptoms || [],
       goals: body.goals || [],
       onboardingComplete: body.onboardingComplete || false,
+      customSymptoms: body.customSymptoms || [],
+      height: body.height,
+      weight: body.weight,
+      relationship: body.relationship,
+      workStatus: body.workStatus,
+      children: body.children,
+      exerciseFrequency: body.exerciseFrequency,
     })
     .returning();
 

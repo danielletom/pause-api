@@ -21,6 +21,13 @@ export const profiles = pgTable("profiles", {
   symptoms: jsonb("symptoms").default([]),
   goals: jsonb("goals").default([]),
   onboardingComplete: boolean("onboarding_complete").default(false),
+  customSymptoms: jsonb("custom_symptoms").default([]),
+  height: text("height"),
+  weight: text("weight"),
+  relationship: text("relationship"),
+  workStatus: text("work_status"),
+  children: text("children"),
+  exerciseFrequency: text("exercise_frequency"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -39,10 +46,12 @@ export const subscriptions = pgTable("subscriptions", {
 });
 
 // ── Daily Logs ──────────────────────────────────────────────────────────────
+// Multiple entries per day — each check-in is a timestamped event
 export const dailyLogs = pgTable("daily_logs", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
   date: date("date").notNull(),
+  loggedAt: timestamp("logged_at").defaultNow(),
   symptomsJson: jsonb("symptoms_json"),
   mood: integer("mood"),
   energy: integer("energy"),
@@ -52,6 +61,7 @@ export const dailyLogs = pgTable("daily_logs", {
   contextTags: jsonb("context_tags").default([]),
   cycleDataJson: jsonb("cycle_data_json"),
   notes: text("notes"),
+  logType: text("log_type"), // 'morning' | 'evening' | null (legacy)
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -126,5 +136,63 @@ export const pushTokens = pgTable("push_tokens", {
   userId: text("user_id").notNull(),
   expoToken: text("expo_token").notNull(),
   platform: text("platform"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ── Computed Scores ─────────────────────────────────────────────────────────
+// Pre-computed daily readiness, sleep, symptom load, and streak
+export const computedScores = pgTable("computed_scores", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  date: date("date").notNull(),
+  readiness: integer("readiness"),
+  sleepScore: integer("sleep_score"),
+  symptomLoad: integer("symptom_load"),
+  streak: integer("streak").default(0),
+  recommendation: text("recommendation"), // AI-generated narrative (Phase 4)
+  componentsJson: jsonb("components_json"), // { sleep: 85, mood: 60, ... }
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ── User Correlations ───────────────────────────────────────────────────────
+// Per-user cause/effect analysis from the correlation engine
+export const userCorrelations = pgTable("user_correlations", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  factorA: text("factor_a").notNull(), // e.g. "sleep_under_6h"
+  factorB: text("factor_b").notNull(), // e.g. "hot_flash"
+  direction: text("direction").notNull(), // "positive" | "negative"
+  confidence: real("confidence").notNull(), // 0.0–1.0
+  effectSizePct: real("effect_size_pct").notNull(),
+  occurrences: integer("occurrences").notNull(),
+  totalOpportunities: integer("total_opportunities").notNull(),
+  lagDays: integer("lag_days").default(0),
+  computedAt: timestamp("computed_at").defaultNow(),
+});
+
+// ── Benchmark Aggregates ────────────────────────────────────────────────────
+// Anonymous peer comparison data, refreshed nightly
+export const benchmarkAggregates = pgTable("benchmark_aggregates", {
+  id: serial("id").primaryKey(),
+  cohortKey: text("cohort_key").notNull(), // e.g. "perimenopause_40-44_moderate"
+  symptom: text("symptom").notNull(),
+  prevalencePct: real("prevalence_pct"),
+  avgFrequency: real("avg_frequency"),
+  avgSeverity: real("avg_severity"),
+  p25Frequency: real("p25_frequency"),
+  p50Frequency: real("p50_frequency"),
+  p75Frequency: real("p75_frequency"),
+  sampleSize: integer("sample_size").notNull(),
+  computedAt: timestamp("computed_at").defaultNow(),
+});
+
+// ── Narratives ──────────────────────────────────────────────────────────────
+// Claude-generated weekly stories and readiness explanations
+export const narratives = pgTable("narratives", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  date: date("date").notNull(),
+  type: text("type").notNull(), // "weekly_story" | "readiness"
+  text: text("text").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });

@@ -8,6 +8,13 @@
       "when": 1770866193710,
       "tag": "0000_curvy_brother_voodoo",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1770878812302,
+      "tag": "0001_skinny_psylocke",
+      "breakpoints": true
     }
   ]
 }

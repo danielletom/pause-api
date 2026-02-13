@@ -1,0 +1,1 @@
+ALTER TABLE "daily_logs" ADD COLUMN "logged_at" timestamp DEFAULT now();

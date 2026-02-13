@@ -1,0 +1,24 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/notifications",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/compute-scores",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/benchmarks",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/correlations",
+      "schedule": "0 4 * * 0"
+    },
+    {
+      "path": "/api/cron/narratives",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
