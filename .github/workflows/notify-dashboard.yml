@@ -1,0 +1,16 @@
+name: Notify Dashboard
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.DASHBOARD_PAT }}
+          repository: ${{ github.repository_owner }}/pause-dashboard
+          event-type: repo-updated
+          client-payload: '{"repo": "pause-api"}'
