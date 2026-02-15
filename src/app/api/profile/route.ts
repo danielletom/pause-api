@@ -76,3 +76,53 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json(newProfile[0], { status: 201 });
 }
+
+export async function PUT(request: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const body = await request.json();
+
+  const existing = await db.query.profiles.findFirst({
+    where: eq(profiles.userId, userId),
+  });
+
+  if (!existing) {
+    return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+  }
+
+  const updatableFields = [
+    'name',
+    'email',
+    'dateOfBirth',
+    'stage',
+    'symptoms',
+    'goals',
+    'customSymptoms',
+    'height',
+    'weight',
+    'relationship',
+    'workStatus',
+    'children',
+    'exerciseFrequency',
+  ] as const;
+
+  const changes: Record<string, unknown> = {};
+  for (const field of updatableFields) {
+    if (field in body) {
+      changes[field] = body[field];
+    }
+  }
+
+  if (Object.keys(changes).length === 0) {
+    return NextResponse.json(existing);
+  }
+
+  const updated = await db
+    .update(profiles)
+    .set(changes)
+    .where(eq(profiles.userId, userId))
+    .returning();
+
+  return NextResponse.json(updated[0]);
+}
