@@ -169,7 +169,7 @@ function computeCrossCorrelations(
       let bestResult: CorrelationResult | null = null;
       let bestAbsEffect = -Infinity;
 
-      for (const lag of [0, 1, 2]) {
+      for (const lag of [0, 1, 2, 3, 5, 7]) {
         let occurrences = 0;
         let totalOpportunities = 0;
         let symptomWithoutFactor = 0;
@@ -206,8 +206,10 @@ function computeCrossCorrelations(
           daysWithoutFactor > 0
             ? symptomWithoutFactor / daysWithoutFactor
             : 0;
-        const effectSizePct =
-          ((rateWith - rateWithout) / Math.max(rateWithout, 0.01)) * 100;
+        // Use risk difference when baseline is 0 (avoids division by near-zero)
+        const effectSizePct = rateWithout > 0.05
+          ? ((rateWith - rateWithout) / rateWithout) * 100
+          : (rateWith - rateWithout) * 100;
         const direction: 'positive' | 'negative' =
           rateWith > rateWithout ? 'positive' : 'negative';
 
