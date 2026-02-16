@@ -89,18 +89,31 @@ export async function GET(request: NextRequest) {
       .where(and(eq(dailyLogs.userId, userId), eq(dailyLogs.date, date)));
 
     // Build symptom summary: merge all symptoms, deduplicate, sort by severity
+    // symptomsJson can be either Record<string, number> (from app) or SymptomEntry[] (legacy)
     const symptomMap = new Map<string, number>();
     const stressorSet = new Set<string>();
     for (const log of logs) {
-      const symptoms = log.symptomsJson as SymptomEntry[] | null;
-      if (Array.isArray(symptoms)) {
-        for (const s of symptoms) {
-          if (s.isStressor) {
-            stressorSet.add(s.name);
-          } else {
-            const existing = symptomMap.get(s.name);
-            if (existing == null || s.severity > existing) {
-              symptomMap.set(s.name, s.severity);
+      const raw = log.symptomsJson;
+      if (raw && typeof raw === 'object') {
+        if (Array.isArray(raw)) {
+          // Legacy array format: [{name, severity, isStressor?}]
+          for (const s of raw as SymptomEntry[]) {
+            if (s.isStressor) {
+              stressorSet.add(s.name);
+            } else {
+              const existing = symptomMap.get(s.name);
+              if (existing == null || s.severity > existing) {
+                symptomMap.set(s.name, s.severity);
+              }
+            }
+          }
+        } else {
+          // Object format: {symptom_key: severity} — what the app actually writes
+          for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+            const sev = typeof val === 'number' ? val : (typeof val === 'object' && val !== null ? ((val as any).severity ?? 1) : 1);
+            const existing = symptomMap.get(key);
+            if (existing == null || sev > existing) {
+              symptomMap.set(key, sev);
             }
           }
         }
@@ -216,13 +229,12 @@ export async function GET(request: NextRequest) {
         topSymptom,
       };
 
-      // Try AI generation first, then guaranteed smart fallback
+      // Try AI generation first (uses Vercel AI Gateway with OIDC or API key)
       try {
-        if (process.env.AI_GATEWAY_API_KEY) {
-          recommendation = await generateReadinessNarrative(scoreData, topCorrelations);
-        }
+        recommendation = await generateReadinessNarrative(scoreData, topCorrelations);
       } catch (err) {
         console.error('[insights/home] AI narrative generation failed:', err);
+        recommendation = null;
       }
 
       // Guaranteed smart fallback — always produces useful text
