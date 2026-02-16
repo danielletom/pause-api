@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     .values({
       userId,
       date: body.date || new Date().toISOString().split('T')[0],
-      symptomsJson: body.symptoms,
+      symptomsJson: body.symptomsJson ?? body.symptoms,
       mood: body.mood,
       energy: body.energy,
       sleepHours: body.sleepHours,
