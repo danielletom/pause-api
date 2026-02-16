@@ -15,6 +15,13 @@
       "when": 1770878812302,
       "tag": "0001_skinny_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771201250021,
+      "tag": "0002_empty_vanisher",
+      "breakpoints": true
     }
   ]
 }

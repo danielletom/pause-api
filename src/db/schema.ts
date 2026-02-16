@@ -186,6 +186,50 @@ export const benchmarkAggregates = pgTable("benchmark_aggregates", {
   computedAt: timestamp("computed_at").defaultNow(),
 });
 
+// ── Content Library ─────────────────────────────────────────────────────────
+// All content: meditations, podcasts, lessons, guides, affirmations, articles
+export const content = pgTable("content", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  slug: text("slug").unique(),
+  contentType: text("content_type").notNull(), // 'podcast' | 'lesson' | 'meditation' | 'affirmation' | 'article' | 'guide'
+  format: text("format").notNull(), // 'audio' | 'text' | 'pdf'
+  description: text("description"),
+  aiDescription: text("ai_description"), // AI-generated summary
+  bodyMarkdown: text("body_markdown"), // for articles/guides
+  audioUrl: text("audio_url"), // URL to audio file
+  thumbnailUrl: text("thumbnail_url"),
+  durationMinutes: integer("duration_minutes"),
+  category: text("category"), // 'Sleep' | 'Hot Flashes' | 'Mood' | 'Nutrition' | etc.
+  tags: jsonb("tags").default([]), // ['evening', 'sleep', 'calm', 'morning', 'anytime', etc.]
+  productionTool: text("production_tool"), // 'NotebookLM' | 'Wondercraft' | 'ElevenLabs' | etc.
+  status: text("status").default("draft"), // 'draft' | 'ready' | 'published'
+  sortOrder: integer("sort_order").default(0),
+  // Program assignment
+  programWeek: integer("program_week"), // 1-8, null if not in program
+  programDay: integer("program_day"), // 1-5, null if not in program
+  programAction: text("program_action"), // "Tonight's Plan Action" text
+  // Metrics
+  listensCount: integer("listens_count").default(0),
+  readsCount: integer("reads_count").default(0),
+  avgRating: real("avg_rating"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ── Content Engagement ──────────────────────────────────────────────────────
+// Track per-user listens/reads
+export const contentEngagement = pgTable("content_engagement", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: integer("content_id").notNull(),
+  action: text("action").notNull(), // 'listen' | 'read' | 'complete' | 'bookmark'
+  progressPercent: integer("progress_percent").default(0),
+  durationSeconds: integer("duration_seconds"),
+  rating: integer("rating"), // 1-5
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // ── Narratives ──────────────────────────────────────────────────────────────
 // Claude-generated weekly stories and readiness explanations
 export const narratives = pgTable("narratives", {
