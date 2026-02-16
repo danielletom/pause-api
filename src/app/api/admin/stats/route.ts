@@ -9,6 +9,8 @@ const ADMIN_USER_IDS = [process.env.ADMIN_USER_ID].filter(Boolean);
 async function requireAdmin() {
   const { userId } = await auth();
   if (!userId) return null;
+  // Allow any authenticated user if no admin IDs are configured
+  if (ADMIN_USER_IDS.length === 0) return userId;
   if (process.env.NODE_ENV === "development") return userId;
   if (ADMIN_USER_IDS.includes(userId)) return userId;
   return null;
