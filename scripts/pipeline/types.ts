@@ -111,7 +111,7 @@ export interface AudioSegment {
 
 export interface AudioGenerationResult {
   contentId: number;
-  tool: "elevenlabs" | "wondercraft";
+  tool: "elevenlabs" | "elevenlabs-dialogue" | "wondercraft";
   outputPath: string;
   durationSeconds: number;
   fileSizeBytes: number;

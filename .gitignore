@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# pipeline data (cached research, scripts, staging audio)
+scripts/pipeline/data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
