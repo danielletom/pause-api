@@ -196,46 +196,82 @@ export async function GET(request: NextRequest) {
 
     // 4b. Generate readiness recommendation inline if missing
     if (!recommendation && readiness != null && logs.length > 0) {
+      // Find sleep hours from logs
+      let sleepHours: number | null = null;
+      let topSymptom: string | null = null;
+      for (const log of logs) {
+        if (log.sleepHours != null) sleepHours = log.sleepHours;
+      }
+      if (symptomSummary.length > 0) {
+        topSymptom = symptomSummary[0].name;
+      }
+
+      const scoreData: ScoreComponents = {
+        readiness,
+        sleep: readinessComponents?.sleep ?? 0,
+        mood: readinessComponents?.mood ?? 0,
+        symptomLoad: readinessComponents?.symptom ?? 0,
+        stressors: readinessComponents?.stressor ?? 0,
+        sleepHours,
+        topSymptom,
+      };
+
+      // Try AI generation first, then guaranteed smart fallback
       try {
-        // Find sleep hours from logs
-        let sleepHours: number | null = null;
-        let topSymptom: string | null = null;
-        for (const log of logs) {
-          if (log.sleepHours != null) sleepHours = log.sleepHours;
-        }
-        if (symptomSummary.length > 0) {
-          topSymptom = symptomSummary[0].name;
-        }
-
-        const scoreData: ScoreComponents = {
-          readiness,
-          sleep: readinessComponents?.sleep ?? 0,
-          mood: readinessComponents?.mood ?? 0,
-          symptomLoad: readinessComponents?.symptom ?? 0,
-          stressors: readinessComponents?.stressor ?? 0,
-          sleepHours,
-          topSymptom,
-        };
-
-        recommendation = await generateReadinessNarrative(scoreData, topCorrelations);
-
-        // Save it back to computedScores for future requests
-        if (recommendation) {
-          const existingScore = await db
-            .select({ id: computedScores.id })
-            .from(computedScores)
-            .where(and(eq(computedScores.userId, userId), eq(computedScores.date, date)))
-            .limit(1);
-          if (existingScore.length > 0) {
-            await db
-              .update(computedScores)
-              .set({ recommendation })
-              .where(eq(computedScores.id, existingScore[0]!.id));
-          }
+        if (process.env.AI_GATEWAY_API_KEY) {
+          recommendation = await generateReadinessNarrative(scoreData, topCorrelations);
         }
       } catch (err) {
-        console.error('[insights/home] Inline narrative generation failed:', err);
-        // Non-fatal — recommendation stays null, client shows fallback
+        console.error('[insights/home] AI narrative generation failed:', err);
+      }
+
+      // Guaranteed smart fallback — always produces useful text
+      if (!recommendation) {
+        const parts: string[] = [];
+        if (sleepHours != null) {
+          const sleepQuality = (readinessComponents?.sleep ?? 0) >= 75 ? 'Good' : (readinessComponents?.sleep ?? 0) >= 50 ? 'Okay' : 'Low';
+          parts.push(`${sleepQuality} sleep (${sleepHours}h)`);
+        }
+        const symptomLevel = symptomSummary.length === 0 ? 'no' : symptomSummary.length <= 2 ? 'low' : 'moderate';
+        parts.push(`${symptomLevel} symptom load`);
+        const stressLevel = stressorSummary.length === 0 ? 'low' : stressorSummary.length <= 2 ? 'moderate' : 'high';
+        parts.push(`${stressLevel} stress`);
+
+        const prefix = parts.join(' + ');
+
+        let tip = '';
+        if (topCorrelations.length > 0) {
+          const c = topCorrelations[0];
+          const factor = c.factor.replace(/_/g, ' ');
+          const symptom = c.symptom.replace(/_/g, ' ');
+          const verb = c.direction === 'negative' ? 'reduces' : 'increases';
+          tip = ` Your data shows ${factor} ${verb} ${symptom} by ${Math.round(Math.abs(c.effectSizePct))}%.`;
+        }
+
+        if (readiness >= 70) {
+          recommendation = `${prefix} means your body is ready for more today.${tip || ' Consider some gentle exercise or activity.'}`;
+        } else if (readiness >= 40) {
+          recommendation = `${prefix} — a mixed picture today. Listen to your body and pace yourself.${tip}`;
+        } else {
+          recommendation = `${prefix} suggests today might feel harder. Prioritize rest and be gentle with yourself.${tip}`;
+        }
+      }
+
+      // Cache the recommendation for future requests
+      try {
+        const existingScore = await db
+          .select({ id: computedScores.id })
+          .from(computedScores)
+          .where(and(eq(computedScores.userId, userId), eq(computedScores.date, date)))
+          .limit(1);
+        if (existingScore.length > 0 && recommendation) {
+          await db
+            .update(computedScores)
+            .set({ recommendation })
+            .where(eq(computedScores.id, existingScore[0]!.id));
+        }
+      } catch {
+        // Non-fatal — caching failure doesn't break the response
       }
     }
 

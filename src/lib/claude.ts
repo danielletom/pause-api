@@ -1,5 +1,5 @@
 import { generateText } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
+import { gateway } from '@ai-sdk/gateway';
 
 export interface WeekSummary {
   topSymptoms: { name: string; avgSeverity: number; dayCount: number }[];
@@ -25,7 +25,7 @@ export interface ScoreComponents {
 export async function generateWeeklyNarrative(weekData: WeekSummary): Promise<string> {
   try {
     const { text } = await generateText({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model: gateway('anthropic/claude-sonnet-4-20250514'),
       maxOutputTokens: 200,
       system: `You are a compassionate health data narrator for Pause, a menopause wellness app.
 Given a user's weekly data summary, write a 2-3 sentence narrative that:
@@ -60,7 +60,7 @@ export async function generateReadinessNarrative(
     };
 
     const { text } = await generateText({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model: gateway('anthropic/claude-sonnet-4-20250514'),
       maxOutputTokens: 120,
       system: `You are a compassionate health narrator for Pause, a menopause tracking app for women 45-60.
 Write 2 concise sentences (under 40 words total) explaining today's readiness score.
