@@ -73,6 +73,7 @@ export async function PUT(
   if (body.productionTool !== undefined) updateData.productionTool = body.productionTool;
   if (body.status !== undefined) updateData.status = body.status;
   if (body.sortOrder !== undefined) updateData.sortOrder = parseInt(body.sortOrder);
+  if (body.programId !== undefined) updateData.programId = body.programId || null;
   if (body.programWeek !== undefined)
     updateData.programWeek = body.programWeek ? parseInt(body.programWeek) : null;
   if (body.programDay !== undefined)

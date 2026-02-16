@@ -77,6 +77,14 @@ const CONTENT_TYPES = ["audio_lesson", "podcast", "meditation", "affirmation", "
 const STATUSES = ["draft", "scheduled", "published"];
 const PRODUCTION_TOOLS = ["NotebookLM", "Wondercraft", "ElevenLabs", "Wondercraft + ElevenLabs", "Wondercraft + ZENmix", "Claude", "Manual"];
 
+const PROGRAMS: { id: string; label: string; icon: string; color: string; bgColor: string }[] = [
+  { id: "main", label: "8-Week Program", icon: "\u2726", color: "text-amber-600", bgColor: "bg-amber-50 border-amber-200" },
+  { id: "better_sleep", label: "Better Sleep", icon: "\u263D", color: "text-indigo-600", bgColor: "bg-indigo-50 border-indigo-200" },
+  { id: "hot_flash_relief", label: "Hot Flash Relief", icon: "\u2744", color: "text-teal-600", bgColor: "bg-teal-50 border-teal-200" },
+  { id: "mood_calm", label: "Mood & Calm", icon: "\u25C9", color: "text-emerald-600", bgColor: "bg-emerald-50 border-emerald-200" },
+  { id: "movement", label: "Movement", icon: "\u2661", color: "text-rose-600", bgColor: "bg-rose-50 border-rose-200" },
+];
+
 // ═══════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════
@@ -98,6 +106,7 @@ interface ContentItem {
   productionTool: string | null;
   status: string;
   sortOrder: number;
+  programId: string | null;
   programWeek: number | null;
   programDay: number | null;
   programAction: string | null;
@@ -138,6 +147,7 @@ export default function ContentManager() {
     title: "", description: "", contentType: "audio_lesson", duration: "",
     week: "", day: "", tool: "", tonight: "", richText: "",
     audioUrl: "", audioFile: "", pdfFile: "", thumbFile: "", category: "",
+    programId: "", customProgramId: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -181,6 +191,9 @@ export default function ContentManager() {
     if (id) {
       const item = items.find((i) => i.id === id);
       if (!item) return;
+      const knownProgramIds = PROGRAMS.map(p => p.id);
+      const itemProgramId = item.programId || "";
+      const isCustomProgram = itemProgramId && !knownProgramIds.includes(itemProgramId);
       setEditorForm({
         title: item.title,
         description: item.description || "",
@@ -194,6 +207,8 @@ export default function ContentManager() {
         audioUrl: item.audioUrl || "",
         audioFile: item.audioUrl ? "uploaded" : "",
         pdfFile: "", thumbFile: "", category: item.category || "",
+        programId: isCustomProgram ? "custom" : itemProgramId,
+        customProgramId: isCustomProgram ? itemProgramId : "",
       });
       setEditorStatus(item.status);
       setSelectedTags(new Set(item.tags || []));
@@ -203,6 +218,7 @@ export default function ContentManager() {
         title: "", description: "", contentType: "audio_lesson", duration: "",
         week: "", day: "", tool: "", tonight: "", richText: "",
         audioUrl: "", audioFile: "", pdfFile: "", thumbFile: "", category: "",
+        programId: "", customProgramId: "",
       });
       setEditorStatus("draft");
       setSelectedTags(new Set());
@@ -226,6 +242,9 @@ export default function ContentManager() {
     setSaving(true);
 
     const durMatch = editorForm.duration.match(/(\d+)/);
+    const resolvedProgramId = editorForm.programId === "custom"
+      ? editorForm.customProgramId || null
+      : editorForm.programId || null;
     const body = {
       title: editorForm.title,
       contentType: editorForm.contentType,
@@ -238,6 +257,7 @@ export default function ContentManager() {
       tags: [...selectedTags],
       productionTool: editorForm.tool || null,
       status: editorStatus,
+      programId: resolvedProgramId,
       programWeek: editorForm.week ? parseInt(editorForm.week) : null,
       programDay: editorForm.day ? parseInt(editorForm.day) : null,
       programAction: editorForm.tonight || null,
@@ -335,7 +355,7 @@ export default function ContentManager() {
           <nav className="flex-1 p-3 space-y-0.5">
             <SidebarButton icon="home" label="Dashboard" active={view === "dashboard"} count={null} onClick={() => navigate("dashboard")} />
             <SidebarButton icon="content" label="All Content" active={view === "content"} count={items.length} onClick={() => navigate("content")} />
-            <SidebarButton icon="program" label="8-Week Program" active={view === "program"} count={null} onClick={() => navigate("program")} />
+            <SidebarButton icon="program" label="Programs" active={view === "program"} count={null} onClick={() => navigate("program")} />
             <SidebarButton icon="analytics" label="Analytics" active={view === "analytics"} count={null} onClick={() => navigate("analytics")} />
             <div className="pt-3 mt-3 border-t border-stone-100">
               <p className="px-3 text-xs text-stone-400 font-medium mb-2 uppercase tracking-wider">Quick Actions</p>
@@ -689,7 +709,14 @@ export default function ContentManager() {
                               })}
                             </div>
                           </td>
-                          <td className="py-3 px-4"><span className="text-xs text-stone-500">{c.programWeek ? `W${c.programWeek} D${c.programDay}` : "Library"}</span></td>
+                          <td className="py-3 px-4">
+                            <span className="text-xs text-stone-500">
+                              {c.programId
+                                ? `${PROGRAMS.find(p => p.id === c.programId)?.icon || ""} ${PROGRAMS.find(p => p.id === c.programId)?.label || c.programId}${c.programWeek ? ` W${c.programWeek}D${c.programDay}` : ""}`
+                                : c.programWeek ? `W${c.programWeek} D${c.programDay}` : "Library"
+                              }
+                            </span>
+                          </td>
                           <td className="py-3 px-4"><span className={`tag ${STATUS_COLORS[c.status] || "bg-stone-100 text-stone-500"}`}>{c.status}</span></td>
                           <td className="py-3 px-4 text-right text-sm text-stone-700">{(c.listensCount || 0) > 0 ? (c.listensCount || 0).toLocaleString() : "\u2014"}</td>
                           <td className="py-3 px-4 text-right">
@@ -704,18 +731,120 @@ export default function ContentManager() {
             </div>
           )}
 
-          {/* ━━━ 8-WEEK PROGRAM ━━━ */}
+          {/* ━━━ PROGRAMS ━━━ */}
           {view === "program" && (
             <div className="fade-in p-8">
               <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h1 className="text-2xl font-bold text-stone-900">8-Week Program</h1>
-                  <p className="text-sm text-stone-400 mt-1">40 lessons &middot; 5 per week &middot; Audio-first curriculum</p>
+                  <h1 className="text-2xl font-bold text-stone-900">Programs</h1>
+                  <p className="text-sm text-stone-400 mt-1">8-week curriculum + focused programs</p>
                 </div>
+                <button onClick={() => openEditor(null)} className="bg-stone-900 text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:bg-stone-800">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                  Add Content
+                </button>
               </div>
+
+              {/* Focused Programs Overview */}
+              <div className="mb-8">
+                <h2 className="text-sm font-bold text-stone-900 mb-3">Focused Programs</h2>
+                <div className="grid grid-cols-4 gap-4">
+                  {PROGRAMS.filter(p => p.id !== "main").map((prog) => {
+                    const progItems = items.filter(i => i.programId === prog.id);
+                    const pubCount = progItems.filter(i => i.status === "published").length;
+                    return (
+                      <div key={prog.id} className={`rounded-2xl border p-5 ${prog.bgColor}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-2xl">{prog.icon}</span>
+                          <div>
+                            <p className={`text-sm font-bold ${prog.color}`}>{prog.label}</p>
+                            <p className="text-xs text-stone-400">{progItems.length} items &middot; {pubCount} published</p>
+                          </div>
+                        </div>
+                        {progItems.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {progItems.sort((a, b) => (a.programWeek || 0) - (b.programWeek || 0) || (a.programDay || 0) - (b.programDay || 0)).map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center gap-2 bg-white/60 rounded-lg px-2.5 py-1.5 cursor-pointer hover:bg-white transition-colors"
+                                onClick={() => openEditor(item.id)}
+                              >
+                                <span className="text-sm">{TYPE_ICONS[item.contentType] || ""}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-stone-800 truncate">{item.title}</p>
+                                  <p className="text-xs text-stone-400">
+                                    {item.programWeek ? `W${item.programWeek}${item.programDay ? `D${item.programDay}` : ""} \u00B7 ` : ""}
+                                    {item.durationMinutes ? `${item.durationMinutes} min` : ""}
+                                  </p>
+                                </div>
+                                <span className={`tag text-xs ${STATUS_COLORS[item.status] || "bg-stone-100 text-stone-500"}`}>
+                                  {item.status === "published" ? "Live" : item.status}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-4 bg-white/40 rounded-xl border border-dashed border-stone-200">
+                            <p className="text-xs text-stone-400 mb-2">No content yet</p>
+                            <button
+                              onClick={() => { setEditorForm(f => ({ ...f, programId: prog.id })); openEditor(null); }}
+                              className={`text-xs font-medium ${prog.color} hover:underline`}
+                            >
+                              + Add first item
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Custom programs */}
+                {(() => {
+                  const knownIds = PROGRAMS.map(p => p.id);
+                  const customPrograms = Array.from(new Set(items.filter(i => i.programId && !knownIds.includes(i.programId)).map(i => i.programId!)));
+                  if (customPrograms.length === 0) return null;
+                  return (
+                    <div className="mt-4">
+                      <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Custom Programs</h3>
+                      <div className="grid grid-cols-4 gap-4">
+                        {customPrograms.map((pid) => {
+                          const progItems = items.filter(i => i.programId === pid);
+                          return (
+                            <div key={pid} className="rounded-2xl border border-purple-200 bg-purple-50 p-5">
+                              <p className="text-sm font-bold text-purple-700 mb-1">{pid.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</p>
+                              <p className="text-xs text-stone-400 mb-3">{progItems.length} items</p>
+                              <div className="space-y-1.5">
+                                {progItems.map((item) => (
+                                  <div
+                                    key={item.id}
+                                    className="flex items-center gap-2 bg-white/60 rounded-lg px-2.5 py-1.5 cursor-pointer hover:bg-white"
+                                    onClick={() => openEditor(item.id)}
+                                  >
+                                    <span className="text-sm">{TYPE_ICONS[item.contentType] || ""}</span>
+                                    <p className="text-xs font-medium text-stone-800 truncate flex-1">{item.title}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* 8-Week Program Grid */}
+              <h2 className="text-sm font-bold text-stone-900 mb-3 flex items-center gap-2">
+                <span className="text-lg">{"\u2726"}</span> 8-Week Program
+                <span className="text-xs font-normal text-stone-400 ml-1">40 lessons &middot; 5 per week</span>
+              </h2>
               <div className="space-y-4">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((wNum) => {
-                  const days = items.filter((c) => c.programWeek === wNum).sort((a, b) => (a.programDay || 0) - (b.programDay || 0));
+                  const days = items
+                    .filter((c) => c.programWeek === wNum && (!c.programId || c.programId === "main"))
+                    .sort((a, b) => (a.programDay || 0) - (b.programDay || 0));
                   const pubCount = days.filter((d) => d.status === "published").length;
                   return (
                     <div key={wNum} className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
@@ -1048,20 +1177,93 @@ export default function ContentManager() {
                 {/* Program assignment */}
                 <div className="bg-stone-50 rounded-xl p-4">
                   <label className="text-xs font-semibold text-stone-700 block mb-2">
-                    Assign to 8-Week Program <span className="text-stone-400 font-normal">(optional)</span>
+                    Assign to Program <span className="text-stone-400 font-normal">(optional)</span>
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <select value={editorForm.week} onChange={(e) => setEditorForm({ ...editorForm, week: e.target.value })}
-                      className="border border-stone-200 rounded-xl px-3 py-2 text-sm outline-none bg-white">
-                      <option value="">Not in program</option>
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map((w) => <option key={w} value={w.toString()}>Week {w}: {WEEK_TITLES[w]}</option>)}
-                    </select>
-                    <select value={editorForm.day} onChange={(e) => setEditorForm({ ...editorForm, day: e.target.value })}
-                      className="border border-stone-200 rounded-xl px-3 py-2 text-sm outline-none bg-white">
-                      <option value="">Day</option>
-                      {[1, 2, 3, 4, 5].map((d) => <option key={d} value={d.toString()}>Day {d}</option>)}
-                    </select>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => setEditorForm({ ...editorForm, programId: "", week: "", day: "" })}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                        !editorForm.programId
+                          ? "border-stone-900 bg-stone-900 text-white"
+                          : "border-stone-200 bg-white text-stone-500 hover:border-stone-400"
+                      }`}
+                    >
+                      Library Only
+                    </button>
+                    {PROGRAMS.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setEditorForm({ ...editorForm, programId: p.id })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5 ${
+                          editorForm.programId === p.id
+                            ? `${p.bgColor} ${p.color} font-bold`
+                            : "border-stone-200 bg-white text-stone-500 hover:border-stone-400"
+                        }`}
+                      >
+                        <span>{p.icon}</span> {p.label}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setEditorForm({ ...editorForm, programId: "custom" })}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                        editorForm.programId === "custom"
+                          ? "border-purple-400 bg-purple-50 text-purple-700 font-bold"
+                          : "border-stone-200 bg-white text-stone-500 hover:border-stone-400"
+                      }`}
+                    >
+                      + Custom
+                    </button>
                   </div>
+
+                  {editorForm.programId === "custom" && (
+                    <div className="mb-3">
+                      <input
+                        type="text"
+                        value={editorForm.customProgramId}
+                        onChange={(e) => setEditorForm({ ...editorForm, customProgramId: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_") })}
+                        placeholder="e.g. stress_relief, energy_boost"
+                        className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-purple-400 bg-white"
+                      />
+                      <p className="text-xs text-stone-400 mt-1">Use lowercase with underscores (e.g. stress_relief)</p>
+                    </div>
+                  )}
+
+                  {editorForm.programId && editorForm.programId !== "custom" && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <select value={editorForm.week} onChange={(e) => setEditorForm({ ...editorForm, week: e.target.value })}
+                        className="border border-stone-200 rounded-xl px-3 py-2 text-sm outline-none bg-white">
+                        <option value="">Week (optional)</option>
+                        {(editorForm.programId === "main" ? [1, 2, 3, 4, 5, 6, 7, 8] : [1, 2, 3, 4]).map((w) => (
+                          <option key={w} value={w.toString()}>
+                            Week {w}{editorForm.programId === "main" ? `: ${WEEK_TITLES[w]}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <select value={editorForm.day} onChange={(e) => setEditorForm({ ...editorForm, day: e.target.value })}
+                        className="border border-stone-200 rounded-xl px-3 py-2 text-sm outline-none bg-white">
+                        <option value="">Day (optional)</option>
+                        {[1, 2, 3, 4, 5].map((d) => <option key={d} value={d.toString()}>Day {d}</option>)}
+                      </select>
+                    </div>
+                  )}
+
+                  {editorForm.programId === "custom" && editorForm.customProgramId && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <select value={editorForm.week} onChange={(e) => setEditorForm({ ...editorForm, week: e.target.value })}
+                        className="border border-stone-200 rounded-xl px-3 py-2 text-sm outline-none bg-white">
+                        <option value="">Week (optional)</option>
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((w) => <option key={w} value={w.toString()}>Week {w}</option>)}
+                      </select>
+                      <select value={editorForm.day} onChange={(e) => setEditorForm({ ...editorForm, day: e.target.value })}
+                        className="border border-stone-200 rounded-xl px-3 py-2 text-sm outline-none bg-white">
+                        <option value="">Day (optional)</option>
+                        {[1, 2, 3, 4, 5].map((d) => <option key={d} value={d.toString()}>Day {d}</option>)}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 {/* Category + Production tool */}

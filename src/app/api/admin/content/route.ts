@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
       productionTool: body.productionTool,
       status: body.status || "draft",
       sortOrder: body.sortOrder ? parseInt(body.sortOrder) : 0,
+      programId: body.programId || null,
       programWeek: body.programWeek ? parseInt(body.programWeek) : null,
       programDay: body.programDay ? parseInt(body.programDay) : null,
       programAction: body.programAction,
