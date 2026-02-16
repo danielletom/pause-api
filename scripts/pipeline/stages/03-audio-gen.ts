@@ -10,7 +10,7 @@ import fs from "fs";
 import path from "path";
 import {
   generateSingleVoice,
-  generateTwoVoice,
+  textToDialogue,
   parseScript,
 } from "../lib/elevenlabs";
 import { generateMeditation } from "../lib/wondercraft";
@@ -155,19 +155,16 @@ async function generatePodcastAudio(
     throw new Error(`Failed to parse speaker segments from podcast script for "${item.title}"`);
   }
 
-  console.log(`  [audio] Parsed ${segments.length} speaker segments for two-voice generation`);
+  console.log(`  [audio] Parsed ${segments.length} speaker segments — using Text to Dialogue API`);
 
-  // Generate each segment
-  const segmentPaths = await generateTwoVoice(segments, slug, paths.audioStaging);
-
-  // Concatenate segments using ffmpeg
+  // Generate a single audio file with natural speaker transitions
   const outputPath = path.join(paths.audioStaging, `${slug}.mp3`);
-  await concatenateAudio(segmentPaths, outputPath);
+  await textToDialogue(segments, outputPath);
 
   const stats = fs.statSync(outputPath);
   return {
     contentId: item.id,
-    tool: "elevenlabs",
+    tool: "elevenlabs-dialogue",
     outputPath,
     durationSeconds: 0,
     fileSizeBytes: stats.size,

@@ -78,6 +78,12 @@ export async function research(contentId: number): Promise<ResearchBrief> {
       system: `You are a medical research synthesizer for Pause, a menopause wellness app.
 Given PubMed abstracts about a specific topic, produce a structured research brief.
 
+PAUSE SUPPLEMENT CONTEXT:
+The Pause app sells a menopause supplement containing two key ingredients:
+- Pueraria mirifica: a phytoestrogen from Thailand used for menopause symptom relief (hot flashes, vaginal dryness, bone health). Most people haven't heard of it.
+- L-theanine: an amino acid from green tea that supports relaxation, sleep quality, and stress reduction without drowsiness.
+When the research topic relates to these ingredients or their benefits (hot flashes, sleep, anxiety, stress, bone health, vaginal health, phytoestrogens), include any relevant findings about Pueraria mirifica and/or L-theanine in the brief. This helps the content writers naturally reference the Pause supplement.
+
 IMPORTANT:
 - Focus on evidence-based, peer-reviewed findings
 - Include specific statistics where available
@@ -160,6 +166,7 @@ function extractKeyTerms(title: string, description: string | null): string | un
     "exercise", "weight", "metabolism", "bone", "joint", "nutrition", "diet",
     "gut", "microbiome", "supplement", "magnesium", "vitamin D", "phytoestrogen",
     "libido", "vaginal", "intimacy", "workplace", "relationships",
+    "pueraria mirifica", "l-theanine", "theanine", "phytoestrogen",
   ];
 
   for (const term of medicalTerms) {
