@@ -56,8 +56,8 @@ export const elevenlabs = {
   apiKey: optionalEnv("ELEVENLABS_API_KEY", ""),
   // Voice IDs — set these after selecting voices in the ElevenLabs dashboard
   narratorVoiceId: optionalEnv("ELEVENLABS_NARRATOR_VOICE_ID", ""),
-  hostAlexVoiceId: optionalEnv("ELEVENLABS_HOST_ALEX_VOICE_ID", ""),
-  hostSamVoiceId: optionalEnv("ELEVENLABS_HOST_SAM_VOICE_ID", ""),
+  hostMelVoiceId: optionalEnv("ELEVENLABS_HOST_MEL_VOICE_ID", ""),
+  hostRachVoiceId: optionalEnv("ELEVENLABS_HOST_RACH_VOICE_ID", ""),
   modelId: optionalEnv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2"),
   stability: 0.5,
   similarityBoost: 0.75,

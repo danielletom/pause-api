@@ -135,13 +135,13 @@ STYLE: Practical and actionable. "Just tell me what to do" energy.`;
     case "podcast":
       return `${base}
 
-FORMAT: Two-host conversational podcast script.
+FORMAT: Two-host conversational podcast script between two women.
 HOSTS:
-- Alex: Warm, inquisitive, asks the questions the listener is thinking. Represents "the everywoman."
-- Sam: Knowledgeable, empathetic, explains complex topics simply. Represents "the trusted expert friend."
+- Mel: Warm, inquisitive, asks the questions the listener is thinking. Represents "the everywoman" going through it herself.
+- Dr. Rach: Knowledgeable, empathetic, explains complex topics simply. A women's health expert who feels like your trusted friend, not a lecturer.
 
 SCRIPT RULES:
-- Use speaker labels: "Alex:" and "Sam:" at the start of each turn
+- Use speaker labels: "Mel:" and "Dr. Rach:" at the start of each turn
 - Include natural reactions ("Oh wow", "That makes sense", "Wait, really?")
 - Include follow-up questions and "aha" moments
 - Light humor where appropriate — never forced

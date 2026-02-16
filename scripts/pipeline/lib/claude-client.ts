@@ -1,10 +1,10 @@
 /**
  * Claude API client for the pipeline.
- * Reuses the @ai-sdk/anthropic pattern from src/lib/claude.ts
+ * Uses the Vercel AI Gateway (matching src/lib/claude.ts pattern)
  */
 
 import { generateText } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { gateway } from "@ai-sdk/gateway";
 import { claude as config } from "../config";
 
 interface GenerateOptions {
@@ -15,8 +15,12 @@ interface GenerateOptions {
 }
 
 export async function generate(options: GenerateOptions): Promise<string> {
+  const modelId = options.model || config.defaultModel;
+  // Use Vercel AI Gateway format: "anthropic/model-name"
+  const gatewayModel = modelId.startsWith("anthropic/") ? modelId : `anthropic/${modelId}`;
+
   const { text } = await generateText({
-    model: anthropic(options.model || config.defaultModel),
+    model: gateway(gatewayModel),
     maxOutputTokens: options.maxOutputTokens || config.maxOutputTokens,
     system: options.system,
     prompt: options.prompt,

@@ -89,7 +89,7 @@ export async function generateTwoVoice(
 
   for (const segment of segments) {
     const voiceId =
-      segment.speaker === "Alex" ? config.hostAlexVoiceId : config.hostSamVoiceId;
+      segment.speaker === "Mel" ? config.hostMelVoiceId : config.hostRachVoiceId;
 
     const segmentPath = path.join(
       segmentDir,
@@ -109,8 +109,8 @@ export async function generateTwoVoice(
 /**
  * Parse a two-host script into audio segments.
  * Expects format like:
- *   Alex: "Hello and welcome..."
- *   Sam: "Thanks Alex, today we're..."
+ *   Mel: "Hello and welcome..."
+ *   Dr. Rach: "Thanks Mel, today we're..."
  */
 export function parseScript(script: string): AudioSegment[] {
   const segments: AudioSegment[] = [];
@@ -123,11 +123,11 @@ export function parseScript(script: string): AudioSegment[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Match speaker label patterns: "Alex:" or "**Alex:**" or "ALEX:"
-    const speakerMatch = trimmed.match(/^\*?\*?(\w+)\*?\*?:\s*(.*)/);
+    // Match speaker label patterns: "Mel:" or "**Mel:**" or "Dr. Rach:" or "**Dr. Rach:**"
+    const speakerMatch = trimmed.match(/^\*?\*?(Mel|Dr\.?\s*Rach)\*?\*?:\s*(.*)/i);
     if (speakerMatch) {
       const speaker = speakerMatch[1];
-      if (["Alex", "Sam", "ALEX", "SAM"].includes(speaker)) {
+      if (true) {
         // Save previous segment
         if (currentSpeaker && currentText.trim()) {
           segments.push({
@@ -136,7 +136,7 @@ export function parseScript(script: string): AudioSegment[] {
             index: index++,
           });
         }
-        currentSpeaker = speaker.charAt(0).toUpperCase() + speaker.slice(1).toLowerCase();
+        currentSpeaker = speaker.toLowerCase().includes("rach") ? "Dr. Rach" : "Mel";
         currentText = speakerMatch[2] || "";
         continue;
       }
