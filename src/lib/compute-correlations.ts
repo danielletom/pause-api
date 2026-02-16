@@ -4,6 +4,7 @@ import {
   medLogs,
   medications,
   userCorrelations,
+  bleedingEvents,
 } from '@/db/schema';
 import { eq, sql, and, gte, countDistinct } from 'drizzle-orm';
 
@@ -71,6 +72,11 @@ function buildDayVectors(
     medicationName: string;
     taken: boolean;
   }[],
+  bleedingEventRows: {
+    eventDate: string;
+    type: string;
+    flowIntensity: string | null;
+  }[] = [],
 ): Map<string, DayVector> {
   const dayMap = new Map<string, DayVector>();
 
@@ -126,6 +132,34 @@ function buildDayVectors(
     if (ml.taken) {
       const factorKey = `med_${ml.medicationName}`;
       day.factors[factorKey] = true;
+    }
+  }
+
+  // Process bleeding events (from period tracker)
+  for (const be of bleedingEventRows) {
+    const dateStr = be.eventDate;
+    const day = ensureDay(dateStr);
+
+    // Period day factor (from dedicated tracker — supplements legacy cycleDataJson)
+    if (
+      be.type === 'period_start' ||
+      be.type === 'period_daily' ||
+      be.type === 'period_end'
+    ) {
+      day.factors['period_day'] = true;
+    }
+
+    // Heavy flow as a factor
+    if (
+      be.flowIntensity === 'heavy' ||
+      be.flowIntensity === 'very_heavy'
+    ) {
+      day.factors['heavy_flow'] = true;
+    }
+
+    // Spotting as a factor
+    if (be.type === 'spotting') {
+      day.factors['spotting'] = true;
     }
   }
 
@@ -271,6 +305,16 @@ export async function computeCorrelationsForUser(
     .innerJoin(medications, eq(medLogs.medicationId, medications.id))
     .where(eq(medLogs.userId, userId));
 
+  // Fetch bleeding events from period tracker
+  const userBleedingEvents = await db
+    .select({
+      eventDate: sql<string>`${bleedingEvents.eventDate}::text`,
+      type: bleedingEvents.type,
+      flowIntensity: bleedingEvents.flowIntensity,
+    })
+    .from(bleedingEvents)
+    .where(eq(bleedingEvents.userId, userId));
+
   // Build day vectors
   const dayMap = buildDayVectors(
     userDailyLogs as {
@@ -287,6 +331,11 @@ export async function computeCorrelationsForUser(
       date: string;
       medicationName: string;
       taken: boolean;
+    }[],
+    userBleedingEvents as {
+      eventDate: string;
+      type: string;
+      flowIntensity: string | null;
     }[],
   );
 
