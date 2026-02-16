@@ -125,7 +125,7 @@ interface Stats {
   totals: { totalContent: number; totalPublished: number };
 }
 
-type ViewType = "dashboard" | "content" | "program" | "analytics" | "drafts";
+type ViewType = "dashboard" | "content" | "program" | "analytics" | "drafts" | "pipeline";
 
 // ═══════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -162,6 +162,11 @@ export default function ContentManager() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
 
+  // Pipeline
+  const [pipelineItems, setPipelineItems] = useState<any[]>([]);
+  const [pipelineOverview, setPipelineOverview] = useState<any>(null);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
+
   // ─── Fetch ────────────────────────────────────────────
   const fetchContent = useCallback(async () => {
     setLoading(true);
@@ -179,11 +184,46 @@ export default function ContentManager() {
     } catch { /* ignore */ }
   }, []);
 
+  const fetchPipeline = useCallback(async () => {
+    setPipelineLoading(true);
+    try {
+      const [overviewRes, itemsRes] = await Promise.all([
+        fetch("/api/admin/pipeline?view=overview"),
+        fetch("/api/admin/pipeline?view=items"),
+      ]);
+      if (overviewRes.ok) setPipelineOverview(await overviewRes.json());
+      if (itemsRes.ok) setPipelineItems(await itemsRes.json());
+    } catch { /* ignore */ }
+    setPipelineLoading(false);
+  }, []);
+
   useEffect(() => { fetchContent(); fetchStats(); }, [fetchContent, fetchStats]);
+  useEffect(() => { if (view === "pipeline") fetchPipeline(); }, [view, fetchPipeline]);
 
   const showMessage = (msg: string) => {
     setMessage(msg);
     setTimeout(() => setMessage(""), 3000);
+  };
+
+  // Pipeline actions
+  const pipelineQueue = async (contentId: number, stage?: string) => {
+    try {
+      const res = await fetch("/api/admin/pipeline", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "queue", contentId, stage }),
+      });
+      if (res.ok) { showMessage(`Queued #${contentId}`); fetchPipeline(); }
+    } catch { showMessage("Failed"); }
+  };
+  const pipelineReset = async (contentId: number) => {
+    if (!confirm("Reset all pipeline progress for this item?")) return;
+    try {
+      const res = await fetch("/api/admin/pipeline", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset", contentId }),
+      });
+      if (res.ok) { showMessage("Reset"); fetchPipeline(); }
+    } catch { showMessage("Failed"); }
   };
 
   // ─── Editor ───────────────────────────────────────────
@@ -357,6 +397,7 @@ export default function ContentManager() {
             <SidebarButton icon="content" label="All Content" active={view === "content"} count={items.length} onClick={() => navigate("content")} />
             <SidebarButton icon="program" label="Programs" active={view === "program"} count={null} onClick={() => navigate("program")} />
             <SidebarButton icon="analytics" label="Analytics" active={view === "analytics"} count={null} onClick={() => navigate("analytics")} />
+            <SidebarButton icon="pipeline" label="Production" active={view === "pipeline"} count={null} onClick={() => navigate("pipeline")} />
             <div className="pt-3 mt-3 border-t border-stone-100">
               <p className="px-3 text-xs text-stone-400 font-medium mb-2 uppercase tracking-wider">Quick Actions</p>
               <SidebarButton icon="drafts" label="Import Drafts" active={view === "drafts"} count={null} badge="New" onClick={() => navigate("drafts")} />
@@ -1096,6 +1137,242 @@ export default function ContentManager() {
               </div>
             </div>
           )}
+
+          {/* ━━━ PRODUCTION PIPELINE ━━━ */}
+          {view === "pipeline" && (
+            <div className="fade-in p-8">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h1 className="text-2xl font-bold text-stone-900">Production Pipeline</h1>
+                  <p className="text-sm text-stone-400 mt-1">Produce content with AI agents &mdash; research, write, record, produce, publish</p>
+                </div>
+                <button onClick={fetchPipeline} className="px-4 py-2 bg-stone-100 text-stone-600 rounded-xl text-sm hover:bg-stone-200">
+                  {pipelineLoading ? "Loading..." : "Refresh"}
+                </button>
+              </div>
+
+              {/* ── GETTING STARTED BANNER ── */}
+              {pipelineOverview && !pipelineOverview.pipelineCounts?.length && (
+                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100 p-6 mb-6">
+                  <h2 className="text-lg font-bold text-stone-900 mb-2">Get Started</h2>
+                  <p className="text-sm text-stone-600 mb-4">Your {pipelineOverview.totals?.total || 0} content items are ready to produce. Here&apos;s how it works:</p>
+                  <div className="grid grid-cols-5 gap-3 mb-5">
+                    {[
+                      { icon: "\uD83D\uDD2C", label: "Research", desc: "PubMed medical research" },
+                      { icon: "\u270D\uFE0F", label: "Write", desc: "AI writes scripts & text" },
+                      { icon: "\uD83C\uDFA4", label: "Record", desc: "ElevenLabs voice synthesis" },
+                      { icon: "\uD83C\uDFDA\uFE0F", label: "Produce", desc: "Normalize, mix & master" },
+                      { icon: "\uD83D\uDE80", label: "Publish", desc: "Upload & update CMS" },
+                    ].map((s, i) => (
+                      <div key={s.label} className="text-center">
+                        <div className="text-2xl mb-1">{s.icon}</div>
+                        <p className="text-xs font-semibold text-stone-800">{s.label}</p>
+                        <p className="text-xs text-stone-500 mt-0.5">{s.desc}</p>
+                        {i < 4 && <div className="text-stone-300 text-lg mt-1">&rarr;</div>}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-white rounded-xl p-4 border border-indigo-100">
+                    <p className="text-xs font-semibold text-stone-700 mb-2">To start producing content, run in your terminal:</p>
+                    <code className="text-xs bg-stone-50 text-stone-700 px-3 py-2 rounded-lg block font-mono">
+                      cd pause-api && npx tsx --env-file=.env.local scripts/pipeline/index.ts batch --week 1
+                    </code>
+                    <p className="text-xs text-stone-400 mt-2">This will research, write, and produce all Week 1 content automatically.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* ── PROGRESS OVERVIEW ── */}
+              {pipelineOverview && (
+                <div className="grid grid-cols-5 gap-4 mb-6">
+                  {(["research", "writing", "audio", "production", "publishing"] as const).map((stage) => {
+                    const stageIcons: Record<string, string> = { research: "\uD83D\uDD2C", writing: "\u270D\uFE0F", audio: "\uD83C\uDFA4", production: "\uD83C\uDFDA\uFE0F", publishing: "\uD83D\uDE80" };
+                    const stageLabels: Record<string, string> = { research: "Research", writing: "Writing", audio: "Audio Gen", production: "Post-Prod", publishing: "Publish" };
+                    const counts = pipelineOverview.pipelineCounts || [];
+                    const completed = counts.find((c: any) => c.stage === stage && c.status === "completed")?.count || 0;
+                    const failed = counts.find((c: any) => c.stage === stage && c.status === "failed")?.count || 0;
+                    const inProg = counts.find((c: any) => c.stage === stage && c.status === "in_progress")?.count || 0;
+                    const total = pipelineOverview.totals?.total || 1;
+                    const pct = Math.round((completed / total) * 100);
+                    return (
+                      <div key={stage} className="bg-white rounded-2xl border border-stone-100 p-4 text-center">
+                        <div className="text-2xl mb-1">{stageIcons[stage]}</div>
+                        <p className="text-xs font-semibold text-stone-700">{stageLabels[stage]}</p>
+                        <div className="mt-2 h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                        <p className="text-xs text-stone-400 mt-1.5">{completed}/{total}</p>
+                        {failed > 0 && <p className="text-xs text-rose-500">{failed} failed</p>}
+                        {inProg > 0 && <p className="text-xs text-amber-500">{inProg} running</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── WHAT NEEDS ATTENTION ── */}
+              {pipelineOverview && (() => {
+                const failedItems = pipelineItems.filter((it: any) => it.pipeline?.some((p: any) => p.status === "failed"));
+                const needsResearch = pipelineItems.filter((it: any) => !it.pipeline?.length);
+                const needsNext = pipelineItems.filter((it: any) => {
+                  if (!it.pipeline?.length) return false;
+                  const stages = ["research", "writing", "audio", "production", "publishing"];
+                  const completedStages = it.pipeline.filter((p: any) => p.status === "completed").map((p: any) => p.stage);
+                  const lastCompleted = stages.findLastIndex((s: string) => completedStages.includes(s));
+                  return lastCompleted >= 0 && lastCompleted < 4 && !it.pipeline.some((p: any) => p.status === "in_progress");
+                });
+                if (!failedItems.length && !needsNext.length) return null;
+                return (
+                  <div className="mb-6 space-y-3">
+                    {failedItems.length > 0 && (
+                      <div className="bg-rose-50 rounded-2xl border border-rose-100 p-5">
+                        <h3 className="text-sm font-bold text-rose-800 mb-2">{"\u26A0"} {failedItems.length} item{failedItems.length !== 1 ? "s" : ""} failed</h3>
+                        <div className="space-y-2">
+                          {failedItems.slice(0, 5).map((it: any) => {
+                            const failedStage = it.pipeline.find((p: any) => p.status === "failed");
+                            return (
+                              <div key={it.id} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2 border border-rose-100">
+                                <span className="text-sm">{TYPE_ICONS[it.contentType] || ""}</span>
+                                <span className="text-xs font-medium text-stone-800 flex-1 truncate">{it.title}</span>
+                                <span className="text-xs text-rose-600">failed at {failedStage?.stage}</span>
+                                <button onClick={() => pipelineQueue(it.id, failedStage?.stage)} className="text-xs bg-rose-100 text-rose-700 px-2 py-1 rounded hover:bg-rose-200">Retry</button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {needsNext.length > 0 && (
+                      <div className="bg-amber-50 rounded-2xl border border-amber-100 p-5">
+                        <h3 className="text-sm font-bold text-amber-800 mb-1">{"\u23F3"} {needsNext.length} item{needsNext.length !== 1 ? "s" : ""} ready for next stage</h3>
+                        <p className="text-xs text-amber-600 mb-3">These items have completed some stages and are waiting for the next one.</p>
+                        <div className="space-y-2">
+                          {needsNext.slice(0, 5).map((it: any) => {
+                            const stages = ["research", "writing", "audio", "production", "publishing"];
+                            const stageLabels: Record<string, string> = { research: "Research", writing: "Write", audio: "Record", production: "Produce", publishing: "Publish" };
+                            const completedStages = it.pipeline.filter((p: any) => p.status === "completed").map((p: any) => p.stage);
+                            const lastIdx = stages.findLastIndex((s: string) => completedStages.includes(s));
+                            const nextStage = stages[lastIdx + 1];
+                            return (
+                              <div key={it.id} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2 border border-amber-100">
+                                <span className="text-sm">{TYPE_ICONS[it.contentType] || ""}</span>
+                                <span className="text-xs font-medium text-stone-800 flex-1 truncate">{it.title}</span>
+                                <span className="text-xs text-amber-600">next: {stageLabels[nextStage] || nextStage}</span>
+                                <button onClick={() => pipelineQueue(it.id, nextStage)} className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded hover:bg-amber-200">Run</button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ── ALL CONTENT TABLE ── */}
+              <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
+                <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
+                  <h2 className="text-sm font-bold text-stone-900">All Content</h2>
+                  <div className="flex items-center gap-4 text-xs text-stone-400">
+                    <span className="flex items-center gap-1"><span className="text-emerald-500">{"\u2713"}</span> Done</span>
+                    <span className="flex items-center gap-1"><span className="text-amber-500">{"\u25CF"}</span> Running</span>
+                    <span className="flex items-center gap-1"><span className="text-rose-500">{"\u2717"}</span> Failed</span>
+                    <span className="flex items-center gap-1"><span className="text-stone-300">{"\u25CB"}</span> Waiting</span>
+                  </div>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-stone-100 bg-stone-50/50">
+                      <th className="text-left px-5 py-2.5 text-xs text-stone-400 font-medium">Content</th>
+                      <th className="text-left px-3 py-2.5 text-xs text-stone-400 font-medium">Type</th>
+                      <th className="text-left px-3 py-2.5 text-xs text-stone-400 font-medium">Wk</th>
+                      <th className="text-center px-2 py-2.5 text-xs text-stone-400 font-medium">{"\uD83D\uDD2C"}</th>
+                      <th className="text-center px-2 py-2.5 text-xs text-stone-400 font-medium">{"\u270D\uFE0F"}</th>
+                      <th className="text-center px-2 py-2.5 text-xs text-stone-400 font-medium">{"\uD83C\uDFA4"}</th>
+                      <th className="text-center px-2 py-2.5 text-xs text-stone-400 font-medium">{"\uD83C\uDFDA\uFE0F"}</th>
+                      <th className="text-center px-2 py-2.5 text-xs text-stone-400 font-medium">{"\uD83D\uDE80"}</th>
+                      <th className="text-right px-5 py-2.5 text-xs text-stone-400 font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pipelineItems.map((item: any) => {
+                      const stages = ["research", "writing", "audio", "production", "publishing"];
+                      const getStatus = (stage: string) => item.pipeline?.find((p: any) => p.stage === stage)?.status;
+                      const indicator = (status: string | undefined) => {
+                        if (!status) return <span className="text-stone-300">{"\u25CB"}</span>;
+                        if (status === "completed") return <span className="text-emerald-500">{"\u2713"}</span>;
+                        if (status === "in_progress") return <span className="text-amber-500 animate-pulse">{"\u25CF"}</span>;
+                        if (status === "failed") return <span className="text-rose-500">{"\u2717"}</span>;
+                        if (status === "pending") return <span className="text-stone-400">{"\u25D4"}</span>;
+                        return <span className="text-stone-300">{"\u25CB"}</span>;
+                      };
+                      const completedCount = stages.filter(s => getStatus(s) === "completed").length;
+                      return (
+                        <tr key={item.id} className="border-b border-stone-50 hover:bg-stone-50/50">
+                          <td className="px-5 py-2.5">
+                            <p className="text-xs font-medium text-stone-800 truncate max-w-[240px]">{item.title}</p>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <span className="text-xs text-stone-500">{TYPE_ICONS[item.contentType] || ""} {TYPE_LABELS[item.contentType] || item.contentType}</span>
+                          </td>
+                          <td className="px-3 py-2.5 text-xs text-stone-400">{item.programWeek || "-"}</td>
+                          {stages.map(s => (
+                            <td key={s} className="text-center px-2 py-2.5 text-sm" title={`${s}: ${getStatus(s) || "not started"}`}>
+                              {indicator(getStatus(s))}
+                            </td>
+                          ))}
+                          <td className="px-5 py-2.5 text-right">
+                            {completedCount === 5 ? (
+                              <span className="text-xs text-emerald-600 font-medium">Done {"\u2713"}</span>
+                            ) : completedCount === 0 ? (
+                              <button onClick={() => pipelineQueue(item.id)} className="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-lg hover:bg-indigo-100 font-medium">
+                                Start
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-1 justify-end">
+                                <button onClick={() => {
+                                  const stageOrder = ["research", "writing", "audio", "production", "publishing"];
+                                  const completed = item.pipeline?.filter((p: any) => p.status === "completed").map((p: any) => p.stage) || [];
+                                  const nextIdx = stageOrder.findLastIndex((s: string) => completed.includes(s)) + 1;
+                                  if (nextIdx < 5) pipelineQueue(item.id, stageOrder[nextIdx]);
+                                }} className="text-xs bg-amber-50 text-amber-700 px-2.5 py-1 rounded-lg hover:bg-amber-100 font-medium">
+                                  Continue
+                                </button>
+                                <button onClick={() => pipelineReset(item.id)} className="text-xs text-stone-400 hover:text-stone-600 px-1.5 py-1">
+                                  {"\u21BA"}
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {pipelineItems.length === 0 && (
+                  <div className="text-center py-12 text-stone-400 text-sm">No content found</div>
+                )}
+              </div>
+
+              {/* ── CLI QUICK REFERENCE ── */}
+              <div className="mt-6 bg-stone-50 rounded-2xl border border-stone-100 p-5">
+                <h3 className="text-xs font-bold text-stone-600 uppercase tracking-wider mb-3">Terminal Commands</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { cmd: "scripts/pipeline/index.ts status", desc: "See progress" },
+                    { cmd: "scripts/pipeline/index.ts run --id 42", desc: "Full pipeline for one item" },
+                    { cmd: "scripts/pipeline/index.ts batch --type podcast", desc: "All podcasts" },
+                    { cmd: "scripts/pipeline/index.ts batch --week 1", desc: "All Week 1 content" },
+                  ].map(({ cmd, desc }) => (
+                    <div key={cmd} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-stone-100">
+                      <span className="text-xs text-stone-400 w-28 shrink-0">{desc}</span>
+                      <code className="text-xs text-stone-600 font-mono truncate">npx tsx --env-file=.env.local {cmd}</code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </main>
 
         {/* ═══ EDITOR MODAL ═══ */}
@@ -1343,6 +1620,7 @@ function SidebarButton({ icon, label, active, count, badge, onClick }: {
     program: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>,
     analytics: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6m14 0V9a2 2 0 00-2-2h-2a2 2 0 00-2 2v10m14 0V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v14" /></svg>,
     drafts: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+    pipeline: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>,
   };
 
   return (
