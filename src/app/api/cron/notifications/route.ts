@@ -10,20 +10,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0]!;
 
   // Get all push tokens
   const tokens = await db.query.pushTokens.findMany();
 
-  // Check who has logged today
-  const todayLogs = await db.query.dailyLogs.findMany({
-    columns: { userId: true, date: true },
-  });
-  const loggedUserIds = new Set(
-    todayLogs
-      .filter((l) => l.date === today)
-      .map((l) => l.userId)
-  );
+  // Check who has logged today — only query today's logs, not the entire table
+  const todayLogs = await db
+    .select({ userId: dailyLogs.userId })
+    .from(dailyLogs)
+    .where(eq(dailyLogs.date, today));
+  const loggedUserIds = new Set(todayLogs.map((l) => l.userId));
 
   // Filter to users who haven't logged today
   const toNotify = tokens.filter((t) => !loggedUserIds.has(t.userId));

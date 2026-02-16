@@ -158,21 +158,32 @@ export async function GET(request: NextRequest) {
 
           const narrativeText = await generateWeeklyNarrative(weekData);
 
-          // Upsert into narratives table
-          await db
-            .insert(narratives)
-            .values({
+          // Check if a narrative already exists for this user/date/type
+          const existingNarrative = await db
+            .select({ id: narratives.id })
+            .from(narratives)
+            .where(
+              and(
+                eq(narratives.userId, userId),
+                eq(narratives.date, todayStr!),
+                eq(narratives.type, 'weekly_story')
+              )
+            )
+            .limit(1);
+
+          if (existingNarrative.length > 0) {
+            await db
+              .update(narratives)
+              .set({ text: narrativeText })
+              .where(eq(narratives.id, existingNarrative[0].id));
+          } else {
+            await db.insert(narratives).values({
               userId,
-              date: todayStr,
+              date: todayStr!,
               type: 'weekly_story',
               text: narrativeText,
-            })
-            .onConflictDoUpdate({
-              target: [narratives.userId, narratives.date, narratives.type],
-              set: {
-                text: narrativeText,
-              },
             });
+          }
 
           weeklyStoriesCount++;
         } catch (error) {

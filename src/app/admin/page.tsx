@@ -137,7 +137,7 @@ export default function ContentManager() {
   const [editorForm, setEditorForm] = useState({
     title: "", description: "", contentType: "audio_lesson", duration: "",
     week: "", day: "", tool: "", tonight: "", richText: "",
-    audioUrl: "", audioFile: "", pdfFile: "", thumbFile: "",
+    audioUrl: "", audioFile: "", pdfFile: "", thumbFile: "", category: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -193,7 +193,7 @@ export default function ContentManager() {
         richText: item.bodyMarkdown || "",
         audioUrl: item.audioUrl || "",
         audioFile: item.audioUrl ? "uploaded" : "",
-        pdfFile: "", thumbFile: "",
+        pdfFile: "", thumbFile: "", category: item.category || "",
       });
       setEditorStatus(item.status);
       setSelectedTags(new Set(item.tags || []));
@@ -202,7 +202,7 @@ export default function ContentManager() {
       setEditorForm({
         title: "", description: "", contentType: "audio_lesson", duration: "",
         week: "", day: "", tool: "", tonight: "", richText: "",
-        audioUrl: "", audioFile: "", pdfFile: "", thumbFile: "",
+        audioUrl: "", audioFile: "", pdfFile: "", thumbFile: "", category: "",
       });
       setEditorStatus("draft");
       setSelectedTags(new Set());
@@ -234,6 +234,7 @@ export default function ContentManager() {
       bodyMarkdown: editorForm.richText || null,
       audioUrl: editorForm.audioUrl || null,
       durationMinutes: durMatch ? parseInt(durMatch[1]) : null,
+      category: editorForm.category || null,
       tags: [...selectedTags],
       productionTool: editorForm.tool || null,
       status: editorStatus,
@@ -454,6 +455,151 @@ export default function ContentManager() {
                       {items.filter(i => i.programWeek && i.status === "published").length} of 40 published
                     </p>
                   </div>
+                </div>
+              </div>
+
+              {/* ═══ SYSTEM STATUS & GAPS ═══ */}
+              <div className="mt-8">
+                <h2 className="text-lg font-bold text-stone-900 mb-4">System Status &amp; Remaining Gaps</h2>
+                <div className="grid grid-cols-2 gap-4">
+
+                  {/* AI & Narratives */}
+                  <div className="bg-white rounded-2xl border border-stone-100 p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                      <h3 className="text-sm font-bold text-stone-900">AI Narratives</h3>
+                    </div>
+                    <ul className="space-y-2 text-xs text-stone-600">
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span><b>NARRATIVES_ENABLED=false</b> — Claude AI weekly stories and readiness narratives are disabled. Set env var to &quot;true&quot; on Vercel to enable.</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span>AI does not use profile data (stage, age, symptoms, goals) when generating narratives — only raw log data is sent to Claude.</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span>No UI indicator in the app showing when AI analysis is running or what data it&apos;s analyzing.</span></li>
+                      <li className="flex gap-2"><span className="text-stone-300">{"\u2713"}</span> <span>Cron scheduled daily at 6am UTC for readiness narratives, weekly stories on Mondays.</span></li>
+                      <li className="flex gap-2"><span className="text-stone-300">{"\u2713"}</span> <span>Fallback static text generated when Claude API fails.</span></li>
+                    </ul>
+                  </div>
+
+                  {/* Report Generation */}
+                  <div className="bg-white rounded-2xl border border-stone-100 p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
+                      <h3 className="text-sm font-bold text-stone-900">Report Generation</h3>
+                    </div>
+                    <ul className="space-y-2 text-xs text-stone-600">
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>No PDF report generation API</b> — the app has an export-data screen but no server-side PDF endpoint exists yet.</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>No doctor report feature</b> — subscription tier lists &quot;doctor_report&quot; as premium feature but no endpoint generates it.</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>No CSV export API</b> — app shows CSV export option but no server endpoint exists.</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span>Export features are listed in subscription tiers (export_pdf) but gating is not enforced.</span></li>
+                    </ul>
+                  </div>
+
+                  {/* Cron Jobs & Background Tasks */}
+                  <div className="bg-white rounded-2xl border border-stone-100 p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                      <h3 className="text-sm font-bold text-stone-900">Cron Jobs (Vercel)</h3>
+                    </div>
+                    <ul className="space-y-2 text-xs text-stone-600">
+                      <li className="flex gap-2"><span className="text-emerald-500">{"\u2713"}</span> <span>compute-scores — 2am UTC daily (readiness scores)</span></li>
+                      <li className="flex gap-2"><span className="text-emerald-500">{"\u2713"}</span> <span>benchmarks — 3am UTC daily (peer comparison)</span></li>
+                      <li className="flex gap-2"><span className="text-emerald-500">{"\u2713"}</span> <span>correlations — 4am UTC Sundays (cause/effect patterns, needs 14+ days data)</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span>narratives — 6am UTC daily (disabled, needs NARRATIVES_ENABLED=true)</span></li>
+                      <li className="flex gap-2"><span className="text-emerald-500">{"\u2713"}</span> <span>notifications — 2pm UTC daily (push reminders to non-loggers)</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span>No monitoring/alerting — cron failures are silent (only logged to Vercel Functions console).</span></li>
+                    </ul>
+                  </div>
+
+                  {/* Content Library Gaps */}
+                  <div className="bg-white rounded-2xl border border-stone-100 p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                      <h3 className="text-sm font-bold text-stone-900">Content Library</h3>
+                    </div>
+                    <ul className="space-y-2 text-xs text-stone-600">
+                      <li className="flex gap-2"><span className="text-emerald-500">{"\u2713"}</span> <span>{items.length} items seeded ({items.filter(i => i.programWeek).length} program + {items.filter(i => !i.programWeek).length} library)</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>0 audio files uploaded</b> — all {items.filter(i => i.format === "audio").length} audio items have empty audioUrl fields.</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>No content delivery API for the mobile app</b> — app doesn&apos;t have endpoints to browse/play library content yet.</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span>All items are in &quot;draft&quot; status — none published for users.</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span>No file upload functionality in CMS — audio URLs must be pasted manually.</span></li>
+                    </ul>
+                  </div>
+
+                  {/* Profile & Personalization */}
+                  <div className="bg-white rounded-2xl border border-stone-100 p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                      <h3 className="text-sm font-bold text-stone-900">Profile &amp; Personalization</h3>
+                    </div>
+                    <ul className="space-y-2 text-xs text-stone-600">
+                      <li className="flex gap-2"><span className="text-emerald-500">{"\u2713"}</span> <span>Profile stores: name, DOB, stage, symptoms, goals, height, weight, relationship, work, exercise.</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span><b>Profile data not used by AI</b> — readiness narratives don&apos;t include user&apos;s stage, age, or personal goals.</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span><b>Benchmarks need 50+ users per cohort</b> — falls back to static data until user base grows.</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>No profile-based content recommendations</b> — library doesn&apos;t personalize based on user symptoms/stage.</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>No program progress tracking in API</b> — programProgress table exists but no endpoints to read/write it.</span></li>
+                    </ul>
+                  </div>
+
+                  {/* Subscription & Payments */}
+                  <div className="bg-white rounded-2xl border border-stone-100 p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                      <h3 className="text-sm font-bold text-stone-900">Subscriptions &amp; Gating</h3>
+                    </div>
+                    <ul className="space-y-2 text-xs text-stone-600">
+                      <li className="flex gap-2"><span className="text-emerald-500">{"\u2713"}</span> <span>RevenueCat webhook processes purchases and updates subscription tier.</span></li>
+                      <li className="flex gap-2"><span className="text-emerald-500">{"\u2713"}</span> <span>Correlations gated: free=2, premium=all.</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span>Features like &quot;lab_upload&quot;, &quot;wearable_sync&quot;, &quot;priority_support&quot; are listed but <b>not implemented</b>.</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span>No feature gating on content library access, export, or AI narratives yet.</span></li>
+                    </ul>
+                  </div>
+
+                  {/* Data & Analytics Signals */}
+                  <div className="bg-white rounded-2xl border border-stone-100 p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                      <h3 className="text-sm font-bold text-stone-900">Data Pipeline</h3>
+                    </div>
+                    <ul className="space-y-2 text-xs text-stone-600">
+                      <li className="flex gap-2"><span className="text-emerald-500">{"\u2713"}</span> <span>Readiness score: weighted (Sleep 40%, Mood 25%, Symptoms 20%, Stressors 15%).</span></li>
+                      <li className="flex gap-2"><span className="text-emerald-500">{"\u2713"}</span> <span>Correlation engine: cross-correlation with lag analysis (0-7 days), min 5 occurrences, 60% confidence.</span></li>
+                      <li className="flex gap-2"><span className="text-emerald-500">{"\u2713"}</span> <span>Benchmarks: cohort-based (stage + age + severity), fallback widening, min 50 users.</span></li>
+                      <li className="flex gap-2"><span className="text-emerald-500">{"\u2713"}</span> <span>Streak calculation: consecutive daily logging.</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span>Scores computed on-demand AND via nightly cron — potential inconsistency window.</span></li>
+                      <li className="flex gap-2"><span className="text-amber-500 font-bold">!</span> <span>No data quality validation on log submission (e.g., sleep hours &gt; 24, negative values).</span></li>
+                    </ul>
+                  </div>
+
+                  {/* Missing App Features */}
+                  <div className="bg-white rounded-2xl border border-stone-100 p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
+                      <h3 className="text-sm font-bold text-stone-900">Missing API Endpoints</h3>
+                    </div>
+                    <ul className="space-y-2 text-xs text-stone-600">
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>GET /api/content</b> — public content browsing (for Wellness Centre tab). No endpoint exists.</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>GET/POST /api/program-progress</b> — track which lessons user completed. Table exists, no routes.</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>POST /api/content/:id/engage</b> — track listens/reads/bookmarks. Table exists, no routes.</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>GET /api/export/pdf</b> — generate PDF health report for user.</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>PUT /api/logs/:id</b> — edit existing log entries (app has edit UI but no PATCH/PUT API).</span></li>
+                      <li className="flex gap-2"><span className="text-rose-500 font-bold">✗</span> <span><b>DELETE /api/meds/:id</b> — deactivate medication (no delete endpoint).</span></li>
+                    </ul>
+                  </div>
+
+                </div>
+
+                {/* Bug fixes applied */}
+                <div className="mt-4 bg-emerald-50 rounded-2xl border border-emerald-100 p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <h3 className="text-sm font-bold text-emerald-900">Bugs Fixed This Session</h3>
+                  </div>
+                  <ul className="space-y-1.5 text-xs text-emerald-700">
+                    <li>{"\u2713"} Notifications cron was loading ALL daily logs into memory (could OOM at scale) — now queries only today&apos;s date.</li>
+                    <li>{"\u2713"} Narratives cron used onConflictDoUpdate on a table with no unique constraint — replaced with check-then-upsert.</li>
+                    <li>{"\u2713"} CMS editor was not sending &quot;category&quot; field when saving — now includes category in save payload.</li>
+                    <li>{"\u2713"} CMS editor now has a Category dropdown (Basics, Sleep, Hot Flashes, Mood, etc.).</li>
+                    <li>{"\u2713"} Added 26 missing library content items from Content Plan (audio lessons, podcasts, meditations).</li>
+                    <li>{"\u2713"} Admin auth fixed — allows any authenticated user when ADMIN_USER_ID not configured.</li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -918,14 +1064,24 @@ export default function ContentManager() {
                   </div>
                 </div>
 
-                {/* Production tool */}
-                <div>
-                  <label className="text-xs font-semibold text-stone-700 block mb-1">Production Tool</label>
-                  <select value={editorForm.tool} onChange={(e) => setEditorForm({ ...editorForm, tool: e.target.value })}
-                    className="w-full border border-stone-200 rounded-xl px-4 py-2.5 outline-none bg-white">
-                    <option value="">Select tool...</option>
-                    {PRODUCTION_TOOLS.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                {/* Category + Production tool */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Category</label>
+                    <select value={editorForm.category} onChange={(e) => setEditorForm({ ...editorForm, category: e.target.value })}
+                      className="w-full border border-stone-200 rounded-xl px-4 py-2.5 outline-none bg-white">
+                      <option value="">Select category...</option>
+                      {["Basics", "Sleep", "Hot Flashes", "Mood", "Movement", "Nutrition", "Relationships", "Treatment", "Wellness"].map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">Production Tool</label>
+                    <select value={editorForm.tool} onChange={(e) => setEditorForm({ ...editorForm, tool: e.target.value })}
+                      className="w-full border border-stone-200 rounded-xl px-4 py-2.5 outline-none bg-white">
+                      <option value="">Select tool...</option>
+                      {PRODUCTION_TOOLS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Tonight's action */}
