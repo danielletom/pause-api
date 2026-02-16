@@ -318,6 +318,20 @@ export const cycleAnalytics = pgTable("cycle_analytics", {
   avgSpottingLeadDays: real("avg_spotting_lead_days"),
 });
 
+// ── Gratitude Entries ─────────────────────────────────────────────────────
+// Standalone gratitude items, AI-tagged with themes
+export const gratitudeEntries = pgTable("gratitude_entries", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  date: date("date").notNull(),
+  text: text("text").notNull(),
+  theme: text("theme"), // people, health, moments, comfort, growth (AI-detected)
+  mood: integer("mood"), // 1-5
+  time: text("time"), // morning, evening
+  sourceLogId: integer("source_log_id"), // FK to dailyLogs.id if migrated from notes
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // ── Content Pipeline ────────────────────────────────────────────────────────
 // Tracks production status per content item per pipeline stage
 export const contentPipeline = pgTable("content_pipeline", {
