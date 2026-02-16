@@ -317,3 +317,19 @@ export const cycleAnalytics = pgTable("cycle_analytics", {
   spotsBeforePeriodPct: real("spots_before_period_pct"),
   avgSpottingLeadDays: real("avg_spotting_lead_days"),
 });
+
+// ── Content Pipeline ────────────────────────────────────────────────────────
+// Tracks production status per content item per pipeline stage
+export const contentPipeline = pgTable("content_pipeline", {
+  id: serial("id").primaryKey(),
+  contentId: integer("content_id").notNull(),
+  stage: text("stage").notNull(), // 'research' | 'writing' | 'audio' | 'production' | 'publishing'
+  status: text("status").notNull(), // 'pending' | 'in_progress' | 'completed' | 'failed' | 'waiting_manual'
+  tool: text("tool"), // 'claude' | 'elevenlabs' | 'wondercraft' | 'ffmpeg' | 'pubmed'
+  outputPath: text("output_path"),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
