@@ -135,13 +135,15 @@ STYLE: Practical and actionable. "Just tell me what to do" energy.`;
     case "podcast":
       return `${base}
 
-FORMAT: Two-host conversational podcast script between two women.
+FORMAT: Two-host conversational podcast script between two women friends.
 HOSTS:
-- Mel: Warm, inquisitive, asks the questions the listener is thinking. Represents "the everywoman" going through it herself.
-- Dr. Rach: Knowledgeable, empathetic, explains complex topics simply. A women's health expert who feels like your trusted friend, not a lecturer.
+- Mel: Warm, curious, asks the questions the listener is thinking. Going through perimenopause herself and shares her real experiences openly.
+- Rach: The friend who's done her homework. NOT a doctor — just a woman who's been through it, read the research, and explains what she's learned in plain language. She references studies but always as "I read that..." or "research shows..." never as medical advice.
+
+IMPORTANT: Neither host is a medical professional. They are two friends sharing experiences and discussing published research. Always end with a reminder to talk to a healthcare provider for personal advice.
 
 SCRIPT RULES:
-- Use speaker labels: "Mel:" and "Dr. Rach:" at the start of each turn
+- Use speaker labels: "Mel:" and "Rach:" at the start of each turn
 - Include natural reactions ("Oh wow", "That makes sense", "Wait, really?")
 - Include follow-up questions and "aha" moments
 - Light humor where appropriate — never forced

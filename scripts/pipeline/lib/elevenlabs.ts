@@ -123,8 +123,8 @@ export function parseScript(script: string): AudioSegment[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Match speaker label patterns: "Mel:" or "**Mel:**" or "Dr. Rach:" or "**Dr. Rach:**"
-    const speakerMatch = trimmed.match(/^\*?\*?(Mel|Dr\.?\s*Rach)\*?\*?:\s*(.*)/i);
+    // Match speaker label patterns: "Mel:" or "**Mel:**" or "Rach:" or "**Rach:**"
+    const speakerMatch = trimmed.match(/^\*?\*?(Mel|Rach)\*?\*?:\s*(.*)/i);
     if (speakerMatch) {
       const speaker = speakerMatch[1];
       if (true) {
@@ -136,7 +136,7 @@ export function parseScript(script: string): AudioSegment[] {
             index: index++,
           });
         }
-        currentSpeaker = speaker.toLowerCase().includes("rach") ? "Dr. Rach" : "Mel";
+        currentSpeaker = speaker.toLowerCase().includes("rach") ? "Rach" : "Mel";
         currentText = speakerMatch[2] || "";
         continue;
       }
