@@ -11,12 +11,15 @@ import {
 } from '@/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { computeScoresForUser, computeStreak } from '@/lib/compute-scores';
+import { generateReadinessNarrative } from '@/lib/claude';
+import type { ScoreComponents } from '@/lib/claude';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
 interface SymptomEntry {
   name: string;
   severity: number;
+  isStressor?: boolean;
 }
 
 interface HomeResponse {
@@ -24,6 +27,8 @@ interface HomeResponse {
   readinessComponents: Record<string, number> | null;
   streak: number;
   symptomSummary: { name: string; severity: number }[];
+  stressorSummary: string[];
+  topCorrelations: { factor: string; symptom: string; direction: string; effectSizePct: number; humanLabel: string }[];
   insightNudge: { title: string; body: string } | null;
   medsToday: {
     id: number;
@@ -77,7 +82,7 @@ export async function GET(request: NextRequest) {
       > | null;
     }
 
-    // 2. Get daily logs for symptom summary
+    // 2. Get daily logs for symptom + stressor summary
     const logs = await db
       .select()
       .from(dailyLogs)
@@ -85,20 +90,31 @@ export async function GET(request: NextRequest) {
 
     // Build symptom summary: merge all symptoms, deduplicate, sort by severity
     const symptomMap = new Map<string, number>();
+    const stressorSet = new Set<string>();
     for (const log of logs) {
       const symptoms = log.symptomsJson as SymptomEntry[] | null;
       if (Array.isArray(symptoms)) {
         for (const s of symptoms) {
-          const existing = symptomMap.get(s.name);
-          if (existing == null || s.severity > existing) {
-            symptomMap.set(s.name, s.severity);
+          if (s.isStressor) {
+            stressorSet.add(s.name);
+          } else {
+            const existing = symptomMap.get(s.name);
+            if (existing == null || s.severity > existing) {
+              symptomMap.set(s.name, s.severity);
+            }
           }
         }
+      }
+      // Also check contextTags for stressors
+      const tags = log.contextTags as string[] | null;
+      if (Array.isArray(tags)) {
+        tags.forEach((t) => stressorSet.add(t));
       }
     }
     const symptomSummary = Array.from(symptomMap.entries())
       .map(([name, severity]) => ({ name, severity }))
       .sort((a, b) => b.severity - a.severity);
+    const stressorSummary = Array.from(stressorSet);
 
     // 3. Get active medications + today's med logs -> build checklist
     const activeMeds = await db
@@ -125,7 +141,7 @@ export async function GET(request: NextRequest) {
       taken: takenMedIds.has(med.id),
     }));
 
-    // 4. Get top user correlation for insight nudge
+    // 4. Get top user correlations — used for nudge AND enriching recommendation
     let insightNudge: { title: string; body: string } | null = null;
 
     const correlationRows = await db
@@ -133,7 +149,22 @@ export async function GET(request: NextRequest) {
       .from(userCorrelations)
       .where(eq(userCorrelations.userId, userId))
       .orderBy(desc(userCorrelations.confidence))
-      .limit(1);
+      .limit(3);
+
+    // Build top correlations for frontend
+    const topCorrelations = correlationRows.map((c) => {
+      const factorLabel = c.factorA.replace(/_/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase());
+      const symptomLabel = c.factorB.replace(/_/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase());
+      const verb = c.direction === 'positive' ? 'increases' : 'reduces';
+      const rounded = Math.round(Math.abs(c.effectSizePct ?? 0));
+      return {
+        factor: c.factorA,
+        symptom: c.factorB,
+        direction: c.direction,
+        effectSizePct: c.effectSizePct ?? 0,
+        humanLabel: `${factorLabel} ${verb} ${symptomLabel.toLowerCase()} by ${rounded}%`,
+      };
+    });
 
     if (correlationRows.length > 0) {
       const c = correlationRows[0]!;
@@ -163,6 +194,51 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // 4b. Generate readiness recommendation inline if missing
+    if (!recommendation && readiness != null && logs.length > 0) {
+      try {
+        // Find sleep hours from logs
+        let sleepHours: number | null = null;
+        let topSymptom: string | null = null;
+        for (const log of logs) {
+          if (log.sleepHours != null) sleepHours = log.sleepHours;
+        }
+        if (symptomSummary.length > 0) {
+          topSymptom = symptomSummary[0].name;
+        }
+
+        const scoreData: ScoreComponents = {
+          readiness,
+          sleep: readinessComponents?.sleep ?? 0,
+          mood: readinessComponents?.mood ?? 0,
+          symptomLoad: readinessComponents?.symptom ?? 0,
+          stressors: readinessComponents?.stressor ?? 0,
+          sleepHours,
+          topSymptom,
+        };
+
+        recommendation = await generateReadinessNarrative(scoreData, topCorrelations);
+
+        // Save it back to computedScores for future requests
+        if (recommendation) {
+          const existingScore = await db
+            .select({ id: computedScores.id })
+            .from(computedScores)
+            .where(and(eq(computedScores.userId, userId), eq(computedScores.date, date)))
+            .limit(1);
+          if (existingScore.length > 0) {
+            await db
+              .update(computedScores)
+              .set({ recommendation })
+              .where(eq(computedScores.id, existingScore[0]!.id));
+          }
+        }
+      } catch (err) {
+        console.error('[insights/home] Inline narrative generation failed:', err);
+        // Non-fatal — recommendation stays null, client shows fallback
+      }
+    }
+
     // 5. Get latest weekly story narrative
     let narrativeText: string | null = null;
 
@@ -188,6 +264,8 @@ export async function GET(request: NextRequest) {
       readinessComponents,
       streak,
       symptomSummary,
+      stressorSummary,
+      topCorrelations,
       insightNudge,
       medsToday,
       recommendation,

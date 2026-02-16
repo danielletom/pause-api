@@ -49,28 +49,59 @@ Given a user's weekly data summary, write a 2-3 sentence narrative that:
   }
 }
 
-export async function generateReadinessNarrative(scoreData: ScoreComponents): Promise<string> {
+export async function generateReadinessNarrative(
+  scoreData: ScoreComponents,
+  correlations?: { factor: string; symptom: string; direction: string; effectSizePct: number; humanLabel: string }[],
+): Promise<string> {
   try {
+    const promptData = {
+      ...scoreData,
+      correlations: correlations?.slice(0, 2) ?? [],
+    };
+
     const { text } = await generateText({
       model: anthropic('claude-sonnet-4-20250514'),
-      maxOutputTokens: 80,
-      system: `You are a health narrator for Pause, a menopause tracking app.
-Write ONE short sentence (under 25 words) explaining today's readiness score.
-Be specific about what contributed most. Never give medical advice.
-Use warm, natural language.`,
-      prompt: JSON.stringify(scoreData, null, 2),
+      maxOutputTokens: 120,
+      system: `You are a compassionate health narrator for Pause, a menopause tracking app for women 45-60.
+Write 2 concise sentences (under 40 words total) explaining today's readiness score.
+
+Rules:
+- First sentence: Explain WHY the score is what it is using their actual data (sleep hours, symptom load, mood, stress)
+- Second sentence: Give ONE specific, actionable suggestion backed by their correlation data if available
+- If a correlation shows something "reduces" symptoms by X%, mention it as evidence (e.g., "your data shows exercise reduces hot flashes by 33%")
+- Use warm, supportive language — like a knowledgeable friend, not a doctor
+- Never give medical advice or mention diagnoses
+- Be specific with numbers from their data, not generic
+- Address the reader as "your" not "you"`,
+      prompt: JSON.stringify(promptData, null, 2),
     });
 
     return text.trim();
   } catch (error) {
     console.error('Failed to generate readiness narrative:', error);
 
+    // Smart fallback using actual data
+    const parts: string[] = [];
+
+    if (scoreData.sleepHours != null) {
+      const sleepQuality = scoreData.sleep >= 75 ? 'Good' : scoreData.sleep >= 50 ? 'Okay' : 'Low';
+      parts.push(`${sleepQuality} sleep (${scoreData.sleepHours}h)`);
+    }
+
+    const symptomLevel = scoreData.symptomLoad >= 80 ? 'low' : scoreData.symptomLoad >= 50 ? 'moderate' : 'high';
+    parts.push(`${symptomLevel} symptom load`);
+
+    const prefix = parts.join(' + ');
+
     if (scoreData.readiness >= 70) {
-      return 'Your readiness is looking solid today — sleep and mood are working in your favor.';
+      const tip = correlations?.[0]
+        ? ` Consider ${correlations[0].factor.replace(/_/g, ' ')} — your data shows it ${correlations[0].direction === 'negative' ? 'reduces' : 'affects'} ${correlations[0].symptom.replace(/_/g, ' ')} by ${Math.round(Math.abs(correlations[0].effectSizePct))}%.`
+        : '';
+      return `${prefix} means your body is ready for more today.${tip}`;
     } else if (scoreData.readiness >= 40) {
-      return 'A mixed day ahead — some factors are strong, others need a little care.';
+      return `${prefix} — a mixed picture today. Listen to your body and take things at your own pace.`;
     } else {
-      return 'Today might feel tougher than usual — be extra gentle with yourself.';
+      return `${prefix} suggests today might feel harder. Be extra gentle with yourself and prioritize rest.`;
     }
   }
 }

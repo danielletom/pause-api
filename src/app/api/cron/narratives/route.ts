@@ -247,7 +247,28 @@ export async function GET(request: NextRequest) {
           topSymptom,
         };
 
-        const narrativeText = await generateReadinessNarrative(scoreData);
+        // Get correlations for this user to enrich narrative
+        const userCorrs = await db
+          .select()
+          .from(userCorrelations)
+          .where(eq(userCorrelations.userId, score.userId))
+          .orderBy(desc(userCorrelations.confidence))
+          .limit(2);
+        const corrData = userCorrs.map((c) => {
+          const factorLabel = c.factorA.replace(/_/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase());
+          const symptomLabel = c.factorB.replace(/_/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase());
+          const verb = c.direction === 'positive' ? 'increases' : 'reduces';
+          const rounded = Math.round(Math.abs(c.effectSizePct ?? 0));
+          return {
+            factor: c.factorA,
+            symptom: c.factorB,
+            direction: c.direction,
+            effectSizePct: c.effectSizePct ?? 0,
+            humanLabel: `${factorLabel} ${verb} ${symptomLabel.toLowerCase()} by ${rounded}%`,
+          };
+        });
+
+        const narrativeText = await generateReadinessNarrative(scoreData, corrData);
 
         // Update computedScores with the recommendation
         await db
