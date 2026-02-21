@@ -224,7 +224,8 @@ export async function computeStreak(userId: string): Promise<number> {
   if (rows.length === 0) return 0;
 
   // Deduplicate dates (multiple logs per day)
-  const uniqueDates = [...new Set(rows.map((r) => r.date))];
+  // Convert to strings first — Date objects don't deduplicate by value in a Set
+  const uniqueDates = [...new Set(rows.map((r) => String(r.date).split('T')[0]))];
 
   let streak = 1;
   for (let i = 1; i < uniqueDates.length; i++) {
