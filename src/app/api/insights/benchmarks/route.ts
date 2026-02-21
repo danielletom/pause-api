@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { profiles, dailyLogs, benchmarkAggregates } from '@/db/schema';
-import { eq, and, gte } from 'drizzle-orm';
+import { eq, and, gte, sql } from 'drizzle-orm';
 import { buildCohortKey } from '@/lib/compute-benchmarks';
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -107,11 +107,21 @@ const DISPLAY_TO_LOG_KEY: Record<string, string[]> = {
   'joint pain': ['joint_pain'],
   'brain fog': ['brain_fog'],
   'mood changes': ['mood_swings', 'mood_changes', 'irritability'],
-  'sleep disruption': ['insomnia', 'sleep_disruption'],
+  'sleep disruption': ['insomnia', 'sleep_disruption', 'sleep_issues'],
   'anxiety': ['anxiety'],
   'fatigue': ['fatigue'],
   'headaches': ['headache', 'headaches'],
-  'heart palpitations': ['heart_racing', 'heart_palpitations'],
+  'heart palpitations': ['heart_racing', 'heart_palpitations', 'palpitations'],
+  'nausea': ['nausea'],
+  'weight gain': ['weight_gain'],
+  'bloating': ['bloating'],
+  'dry skin': ['dry_skin'],
+  'hair loss': ['hair_loss', 'hair_thinning'],
+  'dizziness': ['dizziness', 'dizzy'],
+  'muscle pain': ['muscle_pain', 'muscle_ache'],
+  'low libido': ['low_libido', 'libido'],
+  'vaginal dryness': ['vaginal_dryness'],
+  'urinary issues': ['urinary_issues', 'incontinence'],
 };
 
 /**
@@ -264,7 +274,7 @@ export async function GET(_request: NextRequest) {
     const cutoff28 = daysAgo(28);
     const userLogs = await db
       .select({
-        date: dailyLogs.date,
+        date: sql<string>`${dailyLogs.date}::text`,
         symptomsJson: dailyLogs.symptomsJson,
       })
       .from(dailyLogs)
@@ -312,7 +322,7 @@ export async function GET(_request: NextRequest) {
     if (effectiveBenchmarks.length === 0) {
       // Compute user's own symptom stats for the fallback response
       const userSymptomMap = computeUserSymptomStats(userLogs);
-      const fallbackSymptoms = FALLBACK_SYMPTOMS.map((s) => {
+      const fallbackSymptoms: SymptomInsight[] = FALLBACK_SYMPTOMS.map((s) => {
         const userStats = lookupUserStats(userSymptomMap, s.name);
         const userFreq = userStats?.frequency ?? 0;
         return {
@@ -327,6 +337,23 @@ export async function GET(_request: NextRequest) {
           ),
         };
       });
+
+      // Include user-logged symptoms that aren't already in the fallback list
+      const fallbackNamesLower = new Set(FALLBACK_SYMPTOMS.map((s) => s.name.toLowerCase()));
+      for (const [symptomKey, stats] of userSymptomMap.entries()) {
+        const displayName = symptomKey.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+        if (!fallbackNamesLower.has(displayName.toLowerCase()) && stats.frequency > 0) {
+          fallbackSymptoms.push({
+            name: displayName,
+            userFrequencyDays: stats.frequency,
+            userAvgSeverity: Math.round(stats.avgSeverity * 100) / 100,
+            cohortPrevalencePct: 0,
+            cohortAvgFrequency: 0,
+            percentilePosition: 0,
+            label: 'Less common',
+          });
+        }
+      }
 
       return NextResponse.json({
         cohort: {

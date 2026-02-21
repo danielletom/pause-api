@@ -63,6 +63,7 @@ function buildDayVectors(
     sleepHours: number | null;
     sleepQuality: string | null;
     disruptions: number | null;
+    mood: number | null;
     contextTags: string[] | null;
     cycleDataJson: { status?: string; flow?: string } | null;
     logType: string | null;
@@ -96,6 +97,24 @@ function buildDayVectors(
     if (log.sleepHours != null) {
       if (log.sleepHours < 6) day.factors['sleep_under_6h'] = true;
       if (log.sleepHours >= 7) day.factors['sleep_over_7h'] = true;
+    }
+
+    // Sleep quality factors
+    if (log.sleepQuality) {
+      const sq = log.sleepQuality.toLowerCase();
+      if (sq === 'poor' || sq === 'terrible') day.factors['sleep_quality_poor'] = true;
+      if (sq === 'good' || sq === 'great' || sq === 'excellent') day.factors['sleep_quality_good'] = true;
+    }
+
+    // High disruptions factor
+    if (log.disruptions != null && log.disruptions >= 2) {
+      day.factors['high_disruptions'] = true;
+    }
+
+    // Mood factors
+    if (log.mood != null) {
+      if (log.mood <= 2) day.factors['low_mood'] = true;
+      if (log.mood >= 4) day.factors['high_mood'] = true;
     }
 
     // Context-tag factors
@@ -229,13 +248,11 @@ function computeCrossCorrelations(
           }
         }
 
-        // Skip if insufficient data
-        if (totalOpportunities === 0 || occurrences < 5) continue;
-
-        const confidence = occurrences / totalOpportunities;
-        if (confidence < 0.6) continue;
+        // Skip if insufficient data — need enough observations in both groups
+        if (totalOpportunities < 3 || daysWithoutFactor < 3) continue;
 
         const rateWith = occurrences / totalOpportunities;
+        const confidence = rateWith; // kept for display, no longer a gate
         const rateWithout =
           daysWithoutFactor > 0
             ? symptomWithoutFactor / daysWithoutFactor
@@ -247,7 +264,10 @@ function computeCrossCorrelations(
         const direction: 'positive' | 'negative' =
           rateWith > rateWithout ? 'positive' : 'negative';
 
+        // Skip trivially small effects
         const absEffect = Math.abs(effectSizePct);
+        if (absEffect < 15) continue;
+
         if (absEffect > bestAbsEffect) {
           bestAbsEffect = absEffect;
           bestResult = {
@@ -287,6 +307,7 @@ export async function computeCorrelationsForUser(
       sleepHours: dailyLogs.sleepHours,
       sleepQuality: dailyLogs.sleepQuality,
       disruptions: dailyLogs.disruptions,
+      mood: dailyLogs.mood,
       contextTags: dailyLogs.contextTags,
       cycleDataJson: dailyLogs.cycleDataJson,
       logType: dailyLogs.logType,
@@ -323,6 +344,7 @@ export async function computeCorrelationsForUser(
       sleepHours: number | null;
       sleepQuality: string | null;
       disruptions: number | null;
+      mood: number | null;
       contextTags: string[] | null;
       cycleDataJson: { status?: string; flow?: string } | null;
       logType: string | null;
