@@ -59,25 +59,55 @@ export async function generateReadinessNarrative(
       correlations: correlations?.slice(0, 2) ?? [],
     };
 
+    // Pre-process data into natural language so the model doesn't fall back to raw JSON
+    const sleepDesc = scoreData.sleepHours
+      ? (scoreData.sleepHours < 6 ? `only ${scoreData.sleepHours} hours of sleep` : `${scoreData.sleepHours} hours of sleep`)
+      : 'unknown sleep';
+    const moodDesc = scoreData.mood >= 70 ? 'good mood' : scoreData.mood >= 40 ? 'okay mood' : 'low mood';
+    const symptomDesc = scoreData.symptomLoad <= 30 ? 'symptoms are quiet' : scoreData.symptomLoad <= 60 ? 'some symptoms present' : 'symptoms are heavy';
+    const stressDesc = scoreData.stressors >= 60 ? 'stress is high' : scoreData.stressors >= 30 ? 'some stress' : 'stress is low';
+    const topSymptomDesc = scoreData.topSymptom ? scoreData.topSymptom.replace(/_/g, ' ') : null;
+
+    let corrHint = '';
+    if (correlations && correlations.length > 0) {
+      const c = correlations[0];
+      const f = c.factor.replace(/_/g, ' ');
+      const s = c.symptom.replace(/_/g, ' ');
+      const pct = Math.round(Math.abs(c.effectSizePct));
+      corrHint = c.direction === 'negative'
+        ? `Correlation insight: ${f} tends to reduce ${s} by ${pct}%.`
+        : `Correlation insight: ${f} tends to increase ${s} by ${pct}%.`;
+    }
+
+    const userPrompt = `Today's picture: ${sleepDesc}, ${moodDesc}, ${symptomDesc}, ${stressDesc}.${topSymptomDesc ? ` Top symptom: ${topSymptomDesc}.` : ''}${corrHint ? ` ${corrHint}` : ''}
+
+Write the message:`;
+
     const { text } = await generateText({
       model: openai('gpt-4o-mini'),
       maxOutputTokens: 150,
-      system: `You write short daily check-in messages for Pause, a perimenopause wellness app. You sound like a kind, wise friend who gets it — not a doctor, not a robot.
+      system: `You write the daily message inside a perimenopause health app called Pause.
 
-Write 2-3 SHORT sentences (under 50 words total). Sound natural and human.
+TASK: Write exactly 2 sentences, under 45 words. The message sits inside a card on the home screen.
 
-VOICE RULES:
-- Talk like a friend texting, not a medical report. NO bullet points, NO plus signs, NO data dumps.
-- BAD: "Low sleep (4h) + great mood + low symptom load + high stress."
-- GOOD: "Only 4 hours of sleep — that's tough. But your mood is holding up beautifully and symptoms stayed quiet."
-- Lead with empathy for what's hard, then acknowledge what's going well
-- If sleep was under 6 hours, be gentle about it — don't just state the number
-- End with one warm, specific suggestion (not generic "take care of yourself")
-- If correlation data shows something helps, weave it in naturally: "Your data shows walking tends to ease your hot flashes — might be worth a try today"
-- Never list components with + signs or clinical shorthand
-- Never say "readiness score" or reference the number directly
-- Never give medical advice`,
-      prompt: JSON.stringify(promptData, null, 2),
+TONE: Like a warm, wise older sister. Conversational. Gentle. Never clinical.
+
+STRUCTURE:
+Sentence 1 — Name what's hard or what's good today in plain English. Weave sleep, mood, symptoms together naturally.
+Sentence 2 — One specific, encouraging suggestion. If correlation data is provided, use it.
+
+EXAMPLES OF GREAT MESSAGES:
+- "7.5 hours of sleep and your mood is shining — stress is the only thing dragging today down. A short walk might help shake some of that off."
+- "Rough night with only 4 hours, and that makes everything feel heavier. Tonight, try winding down 30 minutes earlier — even small shifts help."
+- "Your body is doing well today — symptoms stayed quiet and your mood is steady. A great day to enjoy something active if you're up for it."
+- "Sleep was decent but stress crept in, and hot flashes showed up again. Your data shows exercise tends to calm those — even 15 minutes counts."
+
+NEVER DO THIS:
+- "Good sleep (7.5h) + good mood + low symptom load + high stress" ← NEVER use + signs to list things
+- "Low sleep (4h) + great mood" ← NEVER put numbers in parentheses like a formula
+- Do not mention scores, numbers out of 100, or the word "readiness"
+- Do not give medical advice`,
+      prompt: userPrompt,
     });
 
     return text.trim();
