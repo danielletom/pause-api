@@ -5,12 +5,17 @@ import { eq, and, sql } from "drizzle-orm";
 
 /**
  * GET /api/content — list published content
- * Query params: type (podcast|lesson|meditation|affirmation|article|guide), category
+ * Query params:
+ *   type      — podcast|lesson|meditation|affirmation|article|guide
+ *   category  — Sleep|Hot Flashes|Mood|Nutrition|etc.
+ *   programId — better_sleep|hot_flash_relief|mood_calm|movement|main
+ *   id        — single item by ID
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type");
   const category = searchParams.get("category");
+  const programId = searchParams.get("programId");
   const id = searchParams.get("id");
 
   // Single item by ID
@@ -32,6 +37,7 @@ export async function GET(req: NextRequest) {
   const conditions = [eq(content.status, "published")];
   if (type) conditions.push(eq(content.contentType, type));
   if (category) conditions.push(eq(content.category, category));
+  if (programId) conditions.push(eq(content.programId, programId));
 
   const items = await db
     .select({

@@ -98,14 +98,63 @@ function formatCohortLabel(key: string): string {
   return formatted.join(', ');
 }
 
-// ── Hardcoded fallback data ─────────────────────────────────────────────────
+// ── Display name → log key mapping ─────────────────────────────────────────
+// User logs store symptoms as snake_case keys (e.g. "hot_flash", "night_sweats").
+// Benchmarks use display names. This map bridges them for user stat lookups.
+const DISPLAY_TO_LOG_KEY: Record<string, string[]> = {
+  'hot flashes': ['hot_flash', 'hot_flashes'],
+  'night sweats': ['night_sweats', 'night_sweat'],
+  'joint pain': ['joint_pain'],
+  'brain fog': ['brain_fog'],
+  'mood changes': ['mood_swings', 'mood_changes', 'irritability'],
+  'sleep disruption': ['insomnia', 'sleep_disruption'],
+  'anxiety': ['anxiety'],
+  'fatigue': ['fatigue'],
+  'headaches': ['headache', 'headaches'],
+  'heart palpitations': ['heart_racing', 'heart_palpitations'],
+};
+
+/**
+ * Look up user symptom stats by display name, checking all possible log key variants.
+ */
+function lookupUserStats(
+  userSymptomMap: Map<string, { frequency: number; avgSeverity: number }>,
+  displayName: string,
+): { frequency: number; avgSeverity: number } | undefined {
+  const key = displayName.toLowerCase();
+
+  // Direct match first
+  const direct = userSymptomMap.get(key);
+  if (direct) return direct;
+
+  // Try known aliases
+  const aliases = DISPLAY_TO_LOG_KEY[key];
+  if (aliases) {
+    for (const alias of aliases) {
+      const found = userSymptomMap.get(alias);
+      if (found) return found;
+    }
+  }
+
+  // Try converting display name to snake_case as a fallback
+  const snakeKey = key.replace(/\s+/g, '_');
+  const snake = userSymptomMap.get(snakeKey);
+  if (snake) return snake;
+
+  return undefined;
+}
+
+// ── Evidence-based fallback data ────────────────────────────────────────────
+// Sources: BMC Public Health 2024 meta-analysis (Fang et al., 321 studies, n=482,067),
+// SWAN longitudinal study, NAMS/Menopause Society clinical data.
+// Used when the app doesn't yet have enough users for real cohort comparisons.
 
 const FALLBACK_SYMPTOMS: SymptomInsight[] = [
   {
     name: 'Hot flashes',
     userFrequencyDays: 0,
     userAvgSeverity: 0,
-    cohortPrevalencePct: 80,
+    cohortPrevalencePct: 75, // SWAN/NAMS: 60-80% lifetime during transition
     cohortAvgFrequency: 12,
     percentilePosition: 0,
     label: 'Very common',
@@ -114,35 +163,8 @@ const FALLBACK_SYMPTOMS: SymptomInsight[] = [
     name: 'Night sweats',
     userFrequencyDays: 0,
     userAvgSeverity: 0,
-    cohortPrevalencePct: 70,
+    cohortPrevalencePct: 40, // SWAN: ~40% at FMP, 35-50% during transition
     cohortAvgFrequency: 8,
-    percentilePosition: 0,
-    label: 'Very common',
-  },
-  {
-    name: 'Sleep disruption',
-    userFrequencyDays: 0,
-    userAvgSeverity: 0,
-    cohortPrevalencePct: 65,
-    cohortAvgFrequency: 10,
-    percentilePosition: 0,
-    label: 'Common',
-  },
-  {
-    name: 'Mood changes',
-    userFrequencyDays: 0,
-    userAvgSeverity: 0,
-    cohortPrevalencePct: 60,
-    cohortAvgFrequency: 9,
-    percentilePosition: 0,
-    label: 'Common',
-  },
-  {
-    name: 'Brain fog',
-    userFrequencyDays: 0,
-    userAvgSeverity: 0,
-    cohortPrevalencePct: 55,
-    cohortAvgFrequency: 7,
     percentilePosition: 0,
     label: 'Common',
   },
@@ -150,8 +172,8 @@ const FALLBACK_SYMPTOMS: SymptomInsight[] = [
     name: 'Joint pain',
     userFrequencyDays: 0,
     userAvgSeverity: 0,
-    cohortPrevalencePct: 50,
-    cohortAvgFrequency: 8,
+    cohortPrevalencePct: 65, // BMC 2024: 65.43% (CI: 62.51-68.29) — highest prevalence
+    cohortAvgFrequency: 10,
     percentilePosition: 0,
     label: 'Common',
   },
@@ -159,19 +181,64 @@ const FALLBACK_SYMPTOMS: SymptomInsight[] = [
     name: 'Fatigue',
     userFrequencyDays: 0,
     userAvgSeverity: 0,
-    cohortPrevalencePct: 72,
+    cohortPrevalencePct: 64, // BMC 2024: 64.13% (CI: 60.93-67.27)
     cohortAvgFrequency: 14,
     percentilePosition: 0,
-    label: 'Very common',
+    label: 'Common',
+  },
+  {
+    name: 'Brain fog',
+    userFrequencyDays: 0,
+    userAvgSeverity: 0,
+    cohortPrevalencePct: 55, // BMC 2024: 54.44% memory + 44.85% concentration
+    cohortAvgFrequency: 8,
+    percentilePosition: 0,
+    label: 'Common',
+  },
+  {
+    name: 'Mood changes',
+    userFrequencyDays: 0,
+    userAvgSeverity: 0,
+    cohortPrevalencePct: 54, // BMC 2024: 54.37% irritability, 49.03% mood swings
+    cohortAvgFrequency: 9,
+    percentilePosition: 0,
+    label: 'Common',
+  },
+  {
+    name: 'Sleep disruption',
+    userFrequencyDays: 0,
+    userAvgSeverity: 0,
+    cohortPrevalencePct: 52, // BMC 2024: 51.89% (CI: 49.55-54.22)
+    cohortAvgFrequency: 10,
+    percentilePosition: 0,
+    label: 'Common',
   },
   {
     name: 'Anxiety',
     userFrequencyDays: 0,
     userAvgSeverity: 0,
-    cohortPrevalencePct: 45,
+    cohortPrevalencePct: 51, // BMC 2024: 50.53% (CI: 46.65-54.40)
+    cohortAvgFrequency: 7,
+    percentilePosition: 0,
+    label: 'Common',
+  },
+  {
+    name: 'Headaches',
+    userFrequencyDays: 0,
+    userAvgSeverity: 0,
+    cohortPrevalencePct: 44, // BMC 2024: 43.91% (CI: 40.64-47.21)
     cohortAvgFrequency: 6,
     percentilePosition: 0,
     label: 'Common',
+  },
+  {
+    name: 'Heart palpitations',
+    userFrequencyDays: 0,
+    userAvgSeverity: 0,
+    cohortPrevalencePct: 34, // BMC 2024: 42.12% heart discomfort; scoping review: 20-42%
+    cohortAvgFrequency: 4,
+    percentilePosition: 0,
+    label: 'Less common',
   },
 ];
 
@@ -246,11 +313,18 @@ export async function GET(_request: NextRequest) {
       // Compute user's own symptom stats for the fallback response
       const userSymptomMap = computeUserSymptomStats(userLogs);
       const fallbackSymptoms = FALLBACK_SYMPTOMS.map((s) => {
-        const userStats = userSymptomMap.get(s.name.toLowerCase());
+        const userStats = lookupUserStats(userSymptomMap, s.name);
+        const userFreq = userStats?.frequency ?? 0;
         return {
           ...s,
-          userFrequencyDays: userStats?.frequency ?? 0,
+          userFrequencyDays: userFreq,
           userAvgSeverity: userStats?.avgSeverity ?? 0,
+          percentilePosition: estimatePercentile(
+            userFreq,
+            Math.round(s.cohortAvgFrequency * 0.5),
+            s.cohortAvgFrequency,
+            Math.round(s.cohortAvgFrequency * 1.5),
+          ),
         };
       });
 
@@ -259,9 +333,10 @@ export async function GET(_request: NextRequest) {
           key: cohortKey,
           label: formatCohortLabel(cohortKey),
           sampleSize: 0,
+          researchSampleSize: 482067, // BMC Public Health 2024 meta-analysis (Fang et al., 321 studies)
         },
         message:
-          'Not enough data for your specific cohort yet. Showing general population benchmarks. As more users join, your comparisons will become more personalised.',
+          'Based on data from 482,000+ women across 321 medical studies (BMC Public Health 2024 meta-analysis, SWAN longitudinal study). As more users join, your comparisons will be personalised to your specific peer group.',
         symptoms: fallbackSymptoms,
       });
     }
@@ -272,7 +347,7 @@ export async function GET(_request: NextRequest) {
     // 7. Build response for each benchmarked symptom
     const sampleSize = effectiveBenchmarks[0]?.sampleSize ?? 0;
     const symptoms: SymptomInsight[] = effectiveBenchmarks.map((bm) => {
-      const userStats = userSymptomMap.get(bm.symptom.toLowerCase());
+      const userStats = lookupUserStats(userSymptomMap, bm.symptom);
       const userFreq = userStats?.frequency ?? 0;
       const userSev = userStats?.avgSeverity ?? 0;
 

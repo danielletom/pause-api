@@ -8,8 +8,9 @@ import {
   medLogs,
   userCorrelations,
   narratives,
+  content,
 } from '@/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql, isNull, isNotNull } from 'drizzle-orm';
 import { computeScoresForUser, computeStreak } from '@/lib/compute-scores';
 import { generateReadinessNarrative } from '@/lib/claude';
 import type { ScoreComponents } from '@/lib/claude';
@@ -39,6 +40,15 @@ interface HomeResponse {
   }[];
   recommendation: string | null;
   narrative: string | null;
+  suggestedAudio: {
+    id: number;
+    title: string;
+    contentType: string;
+    durationMinutes: number | null;
+    category: string | null;
+    tags: unknown;
+  } | null;
+  tomorrowForecast: string | null;
 }
 
 // ── Route Handler ───────────────────────────────────────────────────────────
@@ -55,31 +65,35 @@ export async function GET(request: NextRequest) {
     const date =
       searchParams.get('date') || new Date().toISOString().split('T')[0]!;
 
-    // 1. Get or compute readiness scores
+    // 1. Recompute readiness scores from latest logs
+    //    Compare with cached score to decide whether the AI narrative
+    //    needs regenerating (avoids unnecessary API calls while still
+    //    reflecting evening check-in data in the score).
     let readiness: number | null = null;
     let readinessComponents: Record<string, number> | null = null;
     let recommendation: string | null = null;
 
+    // Read the previously cached score + recommendation before recomputing
     const scoreRows = await db
       .select()
       .from(computedScores)
       .where(
         and(eq(computedScores.userId, userId), eq(computedScores.date, date))
       );
+    const previousReadiness = scoreRows.length > 0 ? scoreRows[0]!.readiness : null;
+    const cachedRecommendation = scoreRows.length > 0 ? scoreRows[0]!.recommendation : null;
 
-    if (scoreRows.length > 0) {
-      const row = scoreRows[0]!;
-      readiness = row.readiness;
-      readinessComponents = row.componentsJson as Record<string, number> | null;
-      recommendation = row.recommendation;
-    } else {
-      // Compute on-demand if no pre-computed score exists
-      const computed = await computeScoresForUser(userId, date);
-      readiness = computed.readiness;
-      readinessComponents = computed.components as Record<
-        string,
-        number
-      > | null;
+    // Recompute from all logs (morning + evening)
+    const computed = await computeScoresForUser(userId, date);
+    readiness = computed.readiness;
+    readinessComponents = computed.components as Record<string, number> | null;
+
+    // Reuse cached recommendation only if the score hasn't meaningfully changed
+    // A shift of <=3 points is noise; larger shifts warrant a fresh narrative
+    if (cachedRecommendation && previousReadiness != null && readiness != null) {
+      if (Math.abs(readiness - previousReadiness) <= 3) {
+        recommendation = cachedRecommendation;
+      }
     }
 
     // 2. Get daily logs for symptom + stressor summary
@@ -306,7 +320,141 @@ export async function GET(request: NextRequest) {
     // 6. Get streak
     const streak = await computeStreak(userId);
 
-    // 7. Build response
+    // 7. Suggested evening audio — personalized based on top symptom + time of day
+    let suggestedAudio: HomeResponse['suggestedAudio'] = null;
+    try {
+      // Map user's top symptom to a content category
+      const symptomToCategory: Record<string, string> = {
+        hot_flashes: 'Hot Flashes', hot_flash: 'Hot Flashes', night_sweats: 'Sleep',
+        insomnia: 'Sleep', sleep_disruption: 'Sleep', poor_sleep: 'Sleep',
+        anxiety: 'Mood', mood_swings: 'Mood', irritability: 'Mood', depression: 'Mood',
+        brain_fog: 'Brain Fog', fatigue: 'Sleep', joint_pain: 'Body',
+        weight_gain: 'Nutrition', bloating: 'Nutrition', headache: 'Body',
+      };
+
+      // Determine the best category to recommend
+      let targetCategory: string | null = null;
+      if (symptomSummary.length > 0) {
+        const topSymptomKey = symptomSummary[0].name.toLowerCase().replace(/\s+/g, '_');
+        targetCategory = symptomToCategory[topSymptomKey] || null;
+      }
+
+      // Determine time-of-day tag preference
+      const hour = new Date().getHours();
+      const timeTag = hour >= 18 ? 'evening' : hour >= 12 ? 'afternoon' : 'morning';
+
+      // Query for audio content matching category + time, excluding program episodes
+      // Priority: 1) matches category + time tag, 2) matches category, 3) matches time tag, 4) any meditation/podcast
+      const audioItems = await db
+        .select({
+          id: content.id,
+          title: content.title,
+          contentType: content.contentType,
+          durationMinutes: content.durationMinutes,
+          category: content.category,
+          tags: content.tags,
+        })
+        .from(content)
+        .where(
+          and(
+            eq(content.status, 'published'),
+            eq(content.format, 'audio'),
+            isNull(content.programWeek) // Exclude program episodes
+          )
+        )
+        .orderBy(sql`RANDOM()`)
+        .limit(20);
+
+      if (audioItems.length > 0) {
+        // Score each item
+        const scored = audioItems.map((item) => {
+          let score = 0;
+          const itemTags = Array.isArray(item.tags) ? item.tags as string[] : [];
+
+          // Category match (strongest signal)
+          if (targetCategory && item.category === targetCategory) score += 10;
+
+          // Time-of-day tag match
+          if (itemTags.includes(timeTag)) score += 5;
+          if (itemTags.includes('anytime')) score += 2;
+
+          // Prefer meditations in the evening, podcasts otherwise
+          if (hour >= 18 && item.contentType === 'meditation') score += 3;
+          if (hour < 18 && item.contentType === 'podcast') score += 3;
+
+          // Sleep-related content gets a boost in the evening
+          if (hour >= 18 && (item.category === 'Sleep' || itemTags.includes('sleep'))) score += 4;
+
+          return { item, score };
+        });
+
+        // Pick the highest scored item
+        scored.sort((a, b) => b.score - a.score);
+        const best = scored[0].item;
+        suggestedAudio = {
+          id: best.id,
+          title: best.title,
+          contentType: best.contentType,
+          durationMinutes: best.durationMinutes,
+          category: best.category,
+          tags: best.tags,
+        };
+      }
+    } catch (err) {
+      console.error('[insights/home] Suggested audio error:', err);
+    }
+
+    // 8. Tomorrow's forecast — real prediction based on patterns
+    let tomorrowForecast: string | null = null;
+    try {
+      if (readiness != null && readinessComponents) {
+        const sleepComp = readinessComponents.sleep ?? 0;
+        const moodComp = readinessComponents.mood ?? 0;
+        const symptomComp = readinessComponents.symptom ?? 0;
+
+        // Find the weakest component to give targeted advice
+        const components = [
+          { name: 'sleep', score: sleepComp, label: 'sleep' },
+          { name: 'mood', score: moodComp, label: 'mood' },
+          { name: 'symptom', score: symptomComp, label: 'symptoms' },
+        ].sort((a, b) => a.score - b.score);
+
+        const weakest = components[0];
+        const strongest = components[components.length - 1];
+
+        // Predict tomorrow's readiness based on patterns
+        // If user sleeps well (7+ hrs), readiness typically improves by 5-12 points
+        const potentialBoost = weakest.name === 'sleep' ? 12 : weakest.name === 'mood' ? 8 : 5;
+        const predictedReadiness = Math.min(99, readiness + potentialBoost);
+
+        // Build personalized forecast using correlations
+        let correlationTip = '';
+        if (topCorrelations.length > 0) {
+          const bestCorr = topCorrelations.find((c) => c.direction === 'negative'); // find something that helps
+          if (bestCorr) {
+            const factor = bestCorr.factor.replace(/_/g, ' ');
+            correlationTip = ` Your data shows ${factor} helps — try including it.`;
+          }
+        }
+
+        // Generate the forecast text
+        if (weakest.name === 'sleep') {
+          const sleepHrs = logs.find((l) => l.sleepHours != null)?.sleepHours;
+          const targetHrs = sleepHrs && sleepHrs < 7 ? 7 : 8;
+          tomorrowForecast = `Sleep ${targetHrs}+ hours tonight and your readiness could reach ${predictedReadiness}. ${strongest.label.charAt(0).toUpperCase() + strongest.label.slice(1)} is your strongest area right now.${correlationTip}`;
+        } else if (weakest.name === 'mood') {
+          tomorrowForecast = `Focus on winding down gently tonight — your mood score has room to improve. With rest, readiness could reach ${predictedReadiness}.${correlationTip}`;
+        } else {
+          tomorrowForecast = `Your ${weakest.label} were elevated today. A calm evening routine could help bring readiness to ${predictedReadiness} tomorrow.${correlationTip}`;
+        }
+      } else if (streak < 3) {
+        tomorrowForecast = 'Log a few more days so we can start predicting your readiness. Patterns emerge quickly!';
+      }
+    } catch (err) {
+      console.error('[insights/home] Tomorrow forecast error:', err);
+    }
+
+    // 9. Build response
     const response: HomeResponse = {
       readiness,
       readinessComponents,
@@ -318,6 +466,8 @@ export async function GET(request: NextRequest) {
       medsToday,
       recommendation,
       narrative: narrativeText,
+      suggestedAudio,
+      tomorrowForecast,
     };
 
     return NextResponse.json(response);

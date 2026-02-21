@@ -79,9 +79,24 @@ export async function GET() {
 
   const totalFound = allCorrelations.length;
 
-  // Free tier: only top 2; premium: all
-  const visibleCorrelations =
-    tier === 'free' ? allCorrelations.slice(0, 2) : allCorrelations;
+  // Free tier: show top 3 with balanced helps/hurts view
+  // Ensure at least one from each direction so "What helps" isn't always empty
+  let visibleCorrelations = allCorrelations;
+  if (tier === 'free') {
+    const positive = allCorrelations.filter((c) => c.direction === 'positive');
+    const negative = allCorrelations.filter((c) => c.direction === 'negative');
+    // Show top 2 hurts + top 1 helps (or whatever is available, max 3)
+    const selected = [
+      ...positive.slice(0, 2),
+      ...negative.slice(0, 1),
+    ];
+    // If one direction is empty, fill from the other
+    if (selected.length < 3) {
+      const remaining = allCorrelations.filter((c) => !selected.includes(c));
+      selected.push(...remaining.slice(0, 3 - selected.length));
+    }
+    visibleCorrelations = selected.slice(0, 3);
+  }
 
   // Get the most recent computedAt timestamp
   const latestRow = await db

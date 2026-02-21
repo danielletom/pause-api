@@ -128,14 +128,20 @@ async function generateMeditationAudio(
   scriptOutput: ScriptOutput,
   slug: string
 ): Promise<AudioGenerationResult> {
-  // Strip timing/music cues for Wondercraft (it handles its own)
-  const cleanScript = scriptOutput.script
-    .replace(/\[PAUSE \d+s\]/g, "...")
-    .replace(/\[MUSIC:[^\]]+\]/g, "")
-    .replace(/\[BREATHE[^\]]+\]/g, "...take a deep breath...");
+  // Build a rich prompt for Wondercraft's AI — include the script content
+  // plus instructions for meditation-specific delivery (pacing, emotion, pauses).
+  // Wondercraft's AI will handle the actual expression and spacing.
+  const prompt = `Create a ${item.durationMinutes || 15}-minute guided meditation called "${item.title}".
+
+${item.description ? `Context: ${item.description}` : ""}
+
+Use the following script as the basis for the meditation. Deliver it with a calm, warm, soothing voice. Add natural pauses between sections, slow pacing, and gentle breathing cues. This is for women going through perimenopause and menopause — the tone should be compassionate and grounding, never clinical.
+
+SCRIPT:
+${scriptOutput.script}`;
 
   return generateMeditation(
-    cleanScript,
+    prompt,
     item.id,
     slug,
     item.title,

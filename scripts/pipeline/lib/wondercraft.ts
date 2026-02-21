@@ -2,9 +2,13 @@
  * Wondercraft AI API client.
  * Used for: guided meditations with ambient music.
  *
- * Note: Wondercraft's API may require checking their latest docs for
- * exact endpoints. This implements the expected interface — adjust
- * endpoints/payloads as needed once you have API access.
+ * Uses the AI-scripted endpoint (POST /podcast) which lets Wondercraft's AI
+ * handle pacing, pauses, emotion, and expression — producing much more
+ * natural meditation audio than raw script segments.
+ *
+ * API docs: https://docs.wondercraft.ai/api-reference/introduction
+ * Base URL: https://api.wondercraft.ai/v1
+ * Auth: X-API-KEY header
  */
 
 import fs from "fs";
@@ -16,7 +20,7 @@ const BASE_URL = "https://api.wondercraft.ai/v1";
 
 function headers() {
   return {
-    Authorization: `Bearer ${config.apiKey}`,
+    "X-API-KEY": config.apiKey,
     "Content-Type": "application/json",
   };
 }
@@ -24,62 +28,126 @@ function headers() {
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Create a meditation audio project in Wondercraft.
- * Returns a project/job ID for polling.
+ * Create an AI-scripted meditation using POST /podcast.
+ * Wondercraft's AI handles pacing, pauses, emotion, and delivery.
+ * Returns a job_id for polling.
  */
-async function createProject(
-  script: string,
-  title: string,
-  backgroundMusic: string = config.defaultBackgroundMusic
+async function createAiJob(
+  prompt: string,
+  voiceId: string,
+  musicId?: string
 ): Promise<string> {
-  const res = await fetch(`${BASE_URL}/projects`, {
+  const body: Record<string, unknown> = {
+    prompt,
+    voice_ids: [voiceId],
+  };
+
+  if (musicId) {
+    body.music_spec = {
+      music_id: musicId,
+      volume: config.musicVolume,
+      fade_in_ms: 3000,
+      fade_out_ms: 5000,
+    };
+  }
+
+  console.log(`  [wondercraft] Sending AI prompt (${prompt.length} chars)...`);
+
+  const res = await fetch(`${BASE_URL}/podcast`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({
-      title,
-      script,
-      voice: config.voiceProfile,
-      background_music: backgroundMusic,
-      music_volume: config.musicVolume,
-      output_format: "mp3",
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     const errorBody = await res.text();
-    throw new Error(`Wondercraft create project failed (${res.status}): ${errorBody}`);
+    throw new Error(`Wondercraft AI job failed (${res.status}): ${errorBody}`);
   }
 
   const data = await res.json();
-  return data.project_id || data.id;
+  return data.job_id;
 }
 
 /**
- * Poll for project completion and get download URL.
+ * Create a scripted meditation using POST /podcast/scripted.
+ * For when you want exact control over the script content.
+ * Returns a job_id for polling.
+ */
+async function createScriptedJob(
+  script: string,
+  voiceId: string,
+  musicId?: string
+): Promise<string> {
+  const segments = script
+    .split(/\n\n+/)
+    .map((text) => text.trim())
+    .filter((text) => text.length > 0)
+    .map((text) => ({
+      text,
+      voice_id: voiceId,
+    }));
+
+  const body: Record<string, unknown> = {
+    script: segments,
+  };
+
+  if (musicId) {
+    body.music_spec = {
+      music_id: musicId,
+      volume: config.musicVolume,
+      fade_in_ms: 3000,
+      fade_out_ms: 5000,
+    };
+  }
+
+  console.log(`  [wondercraft] Sending ${segments.length} script segments...`);
+
+  const res = await fetch(`${BASE_URL}/podcast/scripted`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(`Wondercraft scripted job failed (${res.status}): ${errorBody}`);
+  }
+
+  const data = await res.json();
+  return data.job_id;
+}
+
+/**
+ * Poll for job completion and get download URL.
+ * GET /podcast/{job_id} → { job_id, finished, error, url }
  */
 async function waitForCompletion(
-  projectId: string,
-  maxWaitMs: number = 300000 // 5 minutes
+  jobId: string,
+  maxWaitMs: number = 600000 // 10 minutes
 ): Promise<string> {
   const startTime = Date.now();
 
   while (Date.now() - startTime < maxWaitMs) {
-    const res = await fetch(`${BASE_URL}/projects/${projectId}`, {
+    const res = await fetch(`${BASE_URL}/podcast/${jobId}`, {
       headers: headers(),
     });
 
     if (!res.ok) throw new Error(`Wondercraft status check failed: ${res.status}`);
 
     const data = await res.json();
-    if (data.status === "completed" && data.download_url) {
-      return data.download_url;
-    }
-    if (data.status === "failed") {
-      throw new Error(`Wondercraft generation failed: ${data.error || "unknown error"}`);
+
+    if (data.error) {
+      throw new Error(`Wondercraft generation failed for job ${jobId}`);
     }
 
-    // Poll every 5 seconds
-    await delay(5000);
+    if (data.finished && data.url) {
+      return data.url;
+    }
+
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    console.log(`  [wondercraft] Still processing... (${elapsed}s elapsed)`);
+
+    await delay(10000);
   }
 
   throw new Error(`Wondercraft generation timed out after ${maxWaitMs / 1000}s`);
@@ -98,8 +166,14 @@ async function downloadAudio(url: string, outputPath: string): Promise<void> {
 }
 
 /**
- * Generate a meditation audio with background music.
- * Full flow: create → poll → download.
+ * Generate a meditation audio using Wondercraft's AI.
+ *
+ * Uses the AI-scripted endpoint by default — pass the meditation description
+ * as a prompt and let Wondercraft's AI handle pacing, emotion, pauses, and
+ * expression. This produces much more natural meditation audio.
+ *
+ * Set useAiScript=false to use the scripted endpoint instead (for exact
+ * script control, though with less natural delivery).
  */
 export async function generateMeditation(
   script: string,
@@ -107,13 +181,22 @@ export async function generateMeditation(
   slug: string,
   title: string,
   outputDir: string,
-  backgroundMusic?: string
+  musicId?: string,
+  useAiScript: boolean = true
 ): Promise<AudioGenerationResult> {
-  console.log(`  [wondercraft] Creating project for "${title}"...`);
-  const projectId = await createProject(script, title, backgroundMusic);
+  const voiceId = config.voiceProfile;
 
-  console.log(`  [wondercraft] Waiting for generation (project: ${projectId})...`);
-  const downloadUrl = await waitForCompletion(projectId);
+  let jobId: string;
+  if (useAiScript) {
+    console.log(`  [wondercraft] Creating AI-scripted job for "${title}"...`);
+    jobId = await createAiJob(script, voiceId, musicId);
+  } else {
+    console.log(`  [wondercraft] Creating scripted job for "${title}"...`);
+    jobId = await createScriptedJob(script, voiceId, musicId);
+  }
+
+  console.log(`  [wondercraft] Job created (${jobId}) — waiting for generation...`);
+  const downloadUrl = await waitForCompletion(jobId);
 
   const outputPath = path.join(outputDir, `${slug}.mp3`);
   console.log(`  [wondercraft] Downloading to ${outputPath}...`);
@@ -124,7 +207,7 @@ export async function generateMeditation(
     contentId,
     tool: "wondercraft",
     outputPath,
-    durationSeconds: 0, // calculated by ffprobe in producer
+    durationSeconds: 0,
     fileSizeBytes: stats.size,
   };
 }

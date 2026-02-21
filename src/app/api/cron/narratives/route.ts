@@ -59,15 +59,29 @@ export async function GET(request: NextRequest) {
           if (logs.length === 0) continue;
 
           // Compute top symptoms (top 3 by frequency)
+          // Handles both formats: {key: severity} (current app) and [{name, severity}] (legacy)
           const symptomMap = new Map<string, { totalSeverity: number; count: number }>();
           for (const log of logs) {
-            const symptoms = log.symptomsJson as { name: string; severity: number }[] | null;
-            if (!symptoms || !Array.isArray(symptoms)) continue;
-            for (const s of symptoms) {
-              const existing = symptomMap.get(s.name) ?? { totalSeverity: 0, count: 0 };
-              existing.totalSeverity += s.severity;
-              existing.count += 1;
-              symptomMap.set(s.name, existing);
+            const raw = log.symptomsJson;
+            if (!raw || typeof raw !== 'object') continue;
+
+            if (Array.isArray(raw)) {
+              // Legacy format: [{name, severity}]
+              for (const s of raw as { name: string; severity: number }[]) {
+                const existing = symptomMap.get(s.name) ?? { totalSeverity: 0, count: 0 };
+                existing.totalSeverity += s.severity;
+                existing.count += 1;
+                symptomMap.set(s.name, existing);
+              }
+            } else {
+              // Current format: {symptom_key: severity}
+              for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+                const sev = typeof val === 'number' ? val : (typeof val === 'object' && val !== null ? ((val as any).severity ?? 1) : 1);
+                const existing = symptomMap.get(key) ?? { totalSeverity: 0, count: 0 };
+                existing.totalSeverity += sev;
+                existing.count += 1;
+                symptomMap.set(key, existing);
+              }
             }
           }
 
@@ -102,8 +116,8 @@ export async function GET(request: NextRequest) {
           let worstDay: WeekSummary['worstDay'] = null;
 
           for (const log of logs) {
-            const symptoms = log.symptomsJson as { name: string; severity: number }[] | null;
-            const symptomCount = Array.isArray(symptoms) ? symptoms.length : 0;
+            const rawSymptoms = log.symptomsJson;
+            const symptomCount = !rawSymptoms ? 0 : Array.isArray(rawSymptoms) ? rawSymptoms.length : (typeof rawSymptoms === 'object' ? Object.keys(rawSymptoms as Record<string, unknown>).length : 0);
             const mood = log.mood ?? 0;
 
             if (!bestDay || mood > bestDay.mood) {
@@ -230,10 +244,19 @@ export async function GET(request: NextRequest) {
 
         let topSymptom: string | null = null;
         if (todayLogs.length > 0) {
-          const symptoms = todayLogs[0].symptomsJson as { name: string; severity: number }[] | null;
-          if (Array.isArray(symptoms) && symptoms.length > 0) {
-            const sorted = [...symptoms].sort((a, b) => b.severity - a.severity);
-            topSymptom = sorted[0].name;
+          const raw = todayLogs[0].symptomsJson;
+          if (raw && typeof raw === 'object') {
+            if (Array.isArray(raw)) {
+              // Legacy format
+              const sorted = [...(raw as { name: string; severity: number }[])].sort((a, b) => b.severity - a.severity);
+              if (sorted.length > 0) topSymptom = sorted[0].name;
+            } else {
+              // Current format: {key: severity}
+              const entries = Object.entries(raw as Record<string, unknown>)
+                .map(([k, v]) => ({ name: k, severity: typeof v === 'number' ? v : 1 }))
+                .sort((a, b) => b.severity - a.severity);
+              if (entries.length > 0) topSymptom = entries[0].name;
+            }
           }
         }
 

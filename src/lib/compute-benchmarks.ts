@@ -228,7 +228,9 @@ function computeCohortStats(
 
 // ── Public: run full benchmark computation ──────────────────────────────────
 
-const MIN_COHORT_SIZE = 50;
+// Lowered from 50 to 5 during early growth phase — will increase as user base grows
+// At 5+ users, peer comparisons are directional but still useful vs hardcoded fallbacks
+const MIN_COHORT_SIZE = 5;
 
 export async function computeAllBenchmarks(): Promise<{
   cohorts: number;
