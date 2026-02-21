@@ -53,6 +53,9 @@ export async function GET(req: NextRequest) {
       category: content.category,
       tags: content.tags,
       sortOrder: content.sortOrder,
+      programId: content.programId,
+      programWeek: content.programWeek,
+      programDay: content.programDay,
     })
     .from(content)
     .where(and(...conditions))
