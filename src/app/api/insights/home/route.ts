@@ -12,7 +12,6 @@ import {
 } from '@/db/schema';
 import { eq, and, desc, sql, isNull, isNotNull } from 'drizzle-orm';
 import { computeScoresForUser, computeStreak } from '@/lib/compute-scores';
-import { generateReadinessNarrative } from '@/lib/claude';
 import type { ScoreComponents } from '@/lib/claude';
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -253,22 +252,14 @@ export async function GET(request: NextRequest) {
         topSymptom,
       };
 
-      // Try AI generation first (uses Vercel AI Gateway with OIDC or API key)
-      try {
-        recommendation = await generateReadinessNarrative(scoreData, topCorrelations);
-      } catch (err) {
-        console.error('[insights/home] AI narrative generation failed:', err);
-        recommendation = null;
-      }
-
-      // Guaranteed smart fallback — always produces useful, conversational text
-      if (!recommendation) {
+      // Generate conversational readiness narrative from score components
+      // (AI generation disabled until API key is configured)
+      {
         const sleepScore = readinessComponents?.sleep ?? 0;
         const moodScore = readinessComponents?.mood ?? 0;
         const symptomScore = readinessComponents?.symptom ?? 0;
         const stressorScore = readinessComponents?.stressor ?? 0;
 
-        // Find the strongest and weakest components for narrative
         const components = [
           { name: 'sleep', score: sleepScore, hours: sleepHours },
           { name: 'mood', score: moodScore },
@@ -290,15 +281,16 @@ export async function GET(request: NextRequest) {
           if (c.direction === 'negative') {
             corrTip = ` Your data shows ${factor} reduces ${symptom} by ${pct}% — worth trying today.`;
           } else {
-            corrTip = ` We've noticed ${factor} tends to increase ${symptom} by ${pct}%, so keep that in mind.`;
+            corrTip = ` We've noticed ${factor} tends to increase ${symptom} by ${pct}%.`;
           }
         }
 
         if (readiness >= 70) {
-          const sleepNote = sleepHours ? `${sleepHours} hours of sleep is paying off` : 'Your sleep is working in your favour';
-          recommendation = `${sleepNote} — your body feels ready for more today.${corrTip || ' A good day to be active if you feel up to it.'}`;
+          const sleepNote = sleepHours
+            ? `${sleepHours} hours of sleep is paying off`
+            : 'Your body feels well-rested';
+          recommendation = `${sleepNote} — you're in a good place today.${corrTip || ' A good day to move your body if you feel up to it.'}`;
         } else if (readiness >= 40) {
-          // Mixed day — highlight what's helping and what's dragging
           let helpNote = '';
           if (strongest.name === 'sleep' && sleepHours) {
             helpNote = `You got ${sleepHours} hours of sleep, which is helping`;
@@ -323,7 +315,6 @@ export async function GET(request: NextRequest) {
 
           recommendation = `${helpNote}, ${dragNote}. Listen to what your body needs today.${corrTip}`;
         } else {
-          // Tough day
           let context = '';
           if (weakest.name === 'sleep' && sleepHours) {
             context = `Only ${sleepHours} hours of sleep is making everything feel harder`;
