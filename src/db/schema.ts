@@ -201,7 +201,7 @@ export const content = pgTable("content", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   slug: text("slug").unique(),
-  contentType: text("content_type").notNull(), // 'podcast' | 'lesson' | 'meditation' | 'affirmation' | 'article' | 'guide'
+  contentType: text("content_type").notNull(), // 'podcast' | 'lesson' | 'audio_lesson' | 'meditation' | 'affirmation' | 'reflection' | 'article' | 'guide'
   format: text("format").notNull(), // 'audio' | 'text' | 'pdf'
   description: text("description"),
   aiDescription: text("ai_description"), // AI-generated summary
