@@ -63,8 +63,8 @@ export async function GET() {
   // Episodes are ordered by week then day
   let currentWeek = 1;
   let currentDay = 1;
-  let currentLesson = episodes[0] || null;
-  let nextLesson = episodes[1] || null;
+  let currentLesson: (typeof episodes)[number] | null = episodes[0] ?? null;
+  let nextLesson: (typeof episodes)[number] | null = episodes[1] ?? null;
 
   for (let i = 0; i < episodes.length; i++) {
     const ep = episodes[i];
