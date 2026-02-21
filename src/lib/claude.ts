@@ -80,28 +80,34 @@ Rules:
   } catch (error) {
     console.error('Failed to generate readiness narrative:', error);
 
-    // Smart fallback using actual data
-    const parts: string[] = [];
+    // Conversational fallback using actual data
+    const topSymptomLabel = scoreData.topSymptom ? scoreData.topSymptom.replace(/_/g, ' ') : null;
 
-    if (scoreData.sleepHours != null) {
-      const sleepQuality = scoreData.sleep >= 75 ? 'Good' : scoreData.sleep >= 50 ? 'Okay' : 'Low';
-      parts.push(`${sleepQuality} sleep (${scoreData.sleepHours}h)`);
+    let corrTip = '';
+    if (correlations && correlations.length > 0) {
+      const c = correlations[0];
+      const factor = c.factor.replace(/_/g, ' ');
+      const symptom = c.symptom.replace(/_/g, ' ');
+      const pct = Math.round(Math.abs(c.effectSizePct));
+      corrTip = c.direction === 'negative'
+        ? ` Your data shows ${factor} reduces ${symptom} by ${pct}%.`
+        : ` We've noticed ${factor} tends to increase ${symptom} by ${pct}%.`;
     }
 
-    const symptomLevel = scoreData.symptomLoad >= 80 ? 'low' : scoreData.symptomLoad >= 50 ? 'moderate' : 'high';
-    parts.push(`${symptomLevel} symptom load`);
-
-    const prefix = parts.join(' + ');
-
     if (scoreData.readiness >= 70) {
-      const tip = correlations?.[0]
-        ? ` Consider ${correlations[0].factor.replace(/_/g, ' ')} — your data shows it ${correlations[0].direction === 'negative' ? 'reduces' : 'affects'} ${correlations[0].symptom.replace(/_/g, ' ')} by ${Math.round(Math.abs(correlations[0].effectSizePct))}%.`
-        : '';
-      return `${prefix} means your body is ready for more today.${tip}`;
+      const sleepNote = scoreData.sleepHours ? `${scoreData.sleepHours} hours of sleep is paying off` : 'Your body feels well-rested';
+      return `${sleepNote} — you're in a good place today.${corrTip || ' A good day to be active if you feel up to it.'}`;
     } else if (scoreData.readiness >= 40) {
-      return `${prefix} — a mixed picture today. Listen to your body and take things at your own pace.`;
+      const sleepNote = scoreData.sleepHours ? `You got ${scoreData.sleepHours} hours of sleep` : 'Some things are working in your favour';
+      const dragNote = topSymptomLabel ? `but ${topSymptomLabel} is weighing on things` : 'but your body could use some extra care';
+      return `${sleepNote}, ${dragNote}. Listen to what your body needs today.${corrTip}`;
     } else {
-      return `${prefix} suggests today might feel harder. Be extra gentle with yourself and prioritize rest.`;
+      const context = scoreData.sleepHours && scoreData.sleepHours < 6
+        ? `Only ${scoreData.sleepHours} hours of sleep is making everything feel harder`
+        : topSymptomLabel
+          ? `${topSymptomLabel.charAt(0).toUpperCase() + topSymptomLabel.slice(1)} is weighing heavily today`
+          : 'Your body is carrying a lot today';
+      return `${context}. Be extra gentle with yourself — rest is productive too.${corrTip}`;
     }
   }
 }

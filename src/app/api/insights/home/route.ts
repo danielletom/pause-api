@@ -261,35 +261,79 @@ export async function GET(request: NextRequest) {
         recommendation = null;
       }
 
-      // Guaranteed smart fallback — always produces useful text
+      // Guaranteed smart fallback — always produces useful, conversational text
       if (!recommendation) {
-        const parts: string[] = [];
-        if (sleepHours != null) {
-          const sleepQuality = (readinessComponents?.sleep ?? 0) >= 75 ? 'Good' : (readinessComponents?.sleep ?? 0) >= 50 ? 'Okay' : 'Low';
-          parts.push(`${sleepQuality} sleep (${sleepHours}h)`);
-        }
-        const symptomLevel = symptomSummary.length === 0 ? 'no' : symptomSummary.length <= 2 ? 'low' : 'moderate';
-        parts.push(`${symptomLevel} symptom load`);
-        const stressLevel = stressorSummary.length === 0 ? 'low' : stressorSummary.length <= 2 ? 'moderate' : 'high';
-        parts.push(`${stressLevel} stress`);
+        const sleepScore = readinessComponents?.sleep ?? 0;
+        const moodScore = readinessComponents?.mood ?? 0;
+        const symptomScore = readinessComponents?.symptom ?? 0;
+        const stressorScore = readinessComponents?.stressor ?? 0;
 
-        const prefix = parts.join(' + ');
+        // Find the strongest and weakest components for narrative
+        const components = [
+          { name: 'sleep', score: sleepScore, hours: sleepHours },
+          { name: 'mood', score: moodScore },
+          { name: 'symptoms', score: symptomScore },
+          { name: 'stress', score: stressorScore },
+        ].sort((a, b) => b.score - a.score);
 
-        let tip = '';
+        const strongest = components[0];
+        const weakest = components[components.length - 1];
+        const topSymptomLabel = topSymptom ? topSymptom.replace(/_/g, ' ') : null;
+
+        // Correlation-based tip
+        let corrTip = '';
         if (topCorrelations.length > 0) {
           const c = topCorrelations[0];
           const factor = c.factor.replace(/_/g, ' ');
           const symptom = c.symptom.replace(/_/g, ' ');
-          const verb = c.direction === 'negative' ? 'reduces' : 'increases';
-          tip = ` Your data shows ${factor} ${verb} ${symptom} by ${Math.round(Math.abs(c.effectSizePct))}%.`;
+          const pct = Math.round(Math.abs(c.effectSizePct));
+          if (c.direction === 'negative') {
+            corrTip = ` Your data shows ${factor} reduces ${symptom} by ${pct}% — worth trying today.`;
+          } else {
+            corrTip = ` We've noticed ${factor} tends to increase ${symptom} by ${pct}%, so keep that in mind.`;
+          }
         }
 
         if (readiness >= 70) {
-          recommendation = `${prefix} means your body is ready for more today.${tip || ' Consider some gentle exercise or activity.'}`;
+          const sleepNote = sleepHours ? `${sleepHours} hours of sleep is paying off` : 'Your sleep is working in your favour';
+          recommendation = `${sleepNote} — your body feels ready for more today.${corrTip || ' A good day to be active if you feel up to it.'}`;
         } else if (readiness >= 40) {
-          recommendation = `${prefix} — a mixed picture today. Listen to your body and pace yourself.${tip}`;
+          // Mixed day — highlight what's helping and what's dragging
+          let helpNote = '';
+          if (strongest.name === 'sleep' && sleepHours) {
+            helpNote = `You got ${sleepHours} hours of sleep, which is helping`;
+          } else if (strongest.name === 'mood') {
+            helpNote = 'Your mood is a bright spot today';
+          } else {
+            helpNote = 'Some things are working in your favour';
+          }
+
+          let dragNote = '';
+          if (weakest.name === 'stress') {
+            dragNote = 'but stress is pulling your score down';
+          } else if (weakest.name === 'symptoms' && topSymptomLabel) {
+            dragNote = `but ${topSymptomLabel} is weighing on things`;
+          } else if (weakest.name === 'mood') {
+            dragNote = 'but your mood could use a boost';
+          } else if (weakest.name === 'sleep') {
+            dragNote = 'but lighter sleep is holding you back';
+          } else {
+            dragNote = 'but some things are weighing you down';
+          }
+
+          recommendation = `${helpNote}, ${dragNote}. Listen to what your body needs today.${corrTip}`;
         } else {
-          recommendation = `${prefix} suggests today might feel harder. Prioritize rest and be gentle with yourself.${tip}`;
+          // Tough day
+          let context = '';
+          if (weakest.name === 'sleep' && sleepHours) {
+            context = `Only ${sleepHours} hours of sleep is making everything feel harder`;
+          } else if (topSymptomLabel) {
+            context = `${topSymptomLabel.charAt(0).toUpperCase() + topSymptomLabel.slice(1)} and other symptoms are weighing heavily`;
+          } else {
+            context = 'Your body is carrying a lot today';
+          }
+
+          recommendation = `${context}. Be extra gentle with yourself — rest is productive too.${corrTip}`;
         }
       }
 
