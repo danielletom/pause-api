@@ -58,11 +58,16 @@ function computeSymptomScore(symptoms: SymptomsEntry[]): number {
   return Math.max(10, 100 - count * 10 - avgSeverity * 3);
 }
 
-function computeStressorScore(symptoms: SymptomsEntry[]): number {
-  const stressors = symptoms.filter((s) => s.isStressor);
-  if (stressors.length === 0) return 100;
+function computeStressorScore(
+  symptoms: SymptomsEntry[],
+  contextStressorCount: number = 0,
+): number {
+  // Count stressors from legacy symptom format + context tags
+  const symptomStressors = symptoms.filter((s) => s.isStressor).length;
+  const totalStressors = symptomStressors + contextStressorCount;
+  if (totalStressors === 0) return 100;
 
-  return Math.max(10, 100 - stressors.length * 12);
+  return Math.max(10, 100 - totalStressors * 12);
 }
 
 function computeReadiness(components: ScoreComponents): number {
@@ -105,6 +110,13 @@ export async function computeScoresForUser(
   let disruptions: number | null = null;
   let mood: number | null = null;
   const allSymptoms: SymptomsEntry[] = [];
+  const contextStressors = new Set<string>();
+
+  // Known stressor context tags — these affect the stressor score
+  const STRESSOR_TAGS = new Set([
+    'stress', 'stressful', 'anxiety', 'overwhelmed',
+    'work_stress', 'conflict', 'deadline', 'grief',
+  ]);
 
   for (const log of logs) {
     if (log.sleepHours != null) sleepHours = log.sleepHours;
@@ -112,9 +124,30 @@ export async function computeScoresForUser(
     if (log.disruptions != null) disruptions = log.disruptions;
     if (log.mood != null) mood = log.mood;
 
-    const symptoms = log.symptomsJson as SymptomsEntry[] | null;
-    if (Array.isArray(symptoms)) {
-      allSymptoms.push(...symptoms);
+    // symptomsJson can be Record<string, number> (current app) or SymptomsEntry[] (legacy)
+    const raw = log.symptomsJson;
+    if (raw && typeof raw === 'object') {
+      if (Array.isArray(raw)) {
+        // Legacy array format: [{name, severity, isStressor?}]
+        allSymptoms.push(...(raw as SymptomsEntry[]));
+      } else {
+        // Object format: {symptom_key: severity_number}
+        for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+          const sev = typeof val === 'number' ? val : 1;
+          allSymptoms.push({ name: key, severity: sev });
+        }
+      }
+    }
+
+    // Process contextTags for stressor detection
+    const tags = log.contextTags as string[] | null;
+    if (Array.isArray(tags)) {
+      for (const tag of tags) {
+        const lower = tag.toLowerCase();
+        if (STRESSOR_TAGS.has(lower)) {
+          contextStressors.add(lower);
+        }
+      }
     }
   }
 
@@ -133,7 +166,7 @@ export async function computeScoresForUser(
     sleep: computeSleepScore(sleepHours, sleepQuality, disruptions),
     mood: computeMoodScore(mood),
     symptom: computeSymptomScore(mergedSymptoms),
-    stressor: computeStressorScore(mergedSymptoms),
+    stressor: computeStressorScore(mergedSymptoms, contextStressors.size),
   };
 
   const readiness = computeReadiness(components);
