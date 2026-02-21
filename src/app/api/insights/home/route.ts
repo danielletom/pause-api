@@ -80,20 +80,30 @@ export async function GET(request: NextRequest) {
       .where(
         and(eq(computedScores.userId, userId), eq(computedScores.date, date))
       );
-    const previousReadiness = scoreRows.length > 0 ? scoreRows[0]!.readiness : null;
     const cachedRecommendation = scoreRows.length > 0 ? scoreRows[0]!.recommendation : null;
+    const cachedAt = scoreRows.length > 0 ? scoreRows[0]!.createdAt : null;
 
     // Recompute from all logs (morning + evening)
     const computed = await computeScoresForUser(userId, date);
     readiness = computed.readiness;
     readinessComponents = computed.components as Record<string, number> | null;
 
-    // Reuse cached recommendation only if the score hasn't meaningfully changed
-    // A shift of <=3 points is noise; larger shifts warrant a fresh narrative
-    if (cachedRecommendation && previousReadiness != null && readiness != null) {
-      if (Math.abs(readiness - previousReadiness) <= 3) {
-        recommendation = cachedRecommendation;
-      }
+    // Check if new logs arrived since the narrative was cached
+    // If a new check-in was added, regenerate so the narrative reflects it
+    const latestLog = await db
+      .select({ loggedAt: dailyLogs.loggedAt })
+      .from(dailyLogs)
+      .where(and(eq(dailyLogs.userId, userId), eq(dailyLogs.date, date)))
+      .orderBy(desc(dailyLogs.loggedAt))
+      .limit(1);
+    const latestLogTime = latestLog.length > 0 ? latestLog[0]!.loggedAt : null;
+    const hasNewLogsSinceCached = cachedAt && latestLogTime
+      ? new Date(latestLogTime).getTime() > new Date(cachedAt).getTime()
+      : false;
+
+    // Reuse cached recommendation only if no new logs have arrived
+    if (cachedRecommendation && !hasNewLogsSinceCached) {
+      recommendation = cachedRecommendation;
     }
 
     // 2. Get daily logs for symptom + stressor summary
