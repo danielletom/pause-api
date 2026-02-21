@@ -12,7 +12,7 @@ import {
 } from '@/db/schema';
 import { eq, and, desc, sql, isNull, isNotNull } from 'drizzle-orm';
 import { computeScoresForUser, computeStreak } from '@/lib/compute-scores';
-import type { ScoreComponents } from '@/lib/claude';
+import { generateReadinessNarrative, type ScoreComponents } from '@/lib/claude';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -252,26 +252,14 @@ export async function GET(request: NextRequest) {
         topSymptom,
       };
 
-      // Generate conversational readiness narrative from score components
-      // (AI generation disabled until API key is configured)
-      {
-        const sleepScore = readinessComponents?.sleep ?? 0;
-        const moodScore = readinessComponents?.mood ?? 0;
-        const symptomScore = readinessComponents?.symptom ?? 0;
-        const stressorScore = readinessComponents?.stressor ?? 0;
-
-        const components = [
-          { name: 'sleep', score: sleepScore, hours: sleepHours },
-          { name: 'mood', score: moodScore },
-          { name: 'symptoms', score: symptomScore },
-          { name: 'stress', score: stressorScore },
-        ].sort((a, b) => b.score - a.score);
-
-        const strongest = components[0];
-        const weakest = components[components.length - 1];
+      // Try AI-generated narrative first, fall back to conversational template
+      try {
+        recommendation = await generateReadinessNarrative(scoreData, topCorrelations);
+      } catch (aiError) {
+        console.error('[insights/home] AI narrative failed, using fallback:', aiError);
+        // Conversational fallback using actual data
         const topSymptomLabel = topSymptom ? topSymptom.replace(/_/g, ' ') : null;
 
-        // Correlation-based tip
         let corrTip = '';
         if (topCorrelations.length > 0) {
           const c = topCorrelations[0];
@@ -291,39 +279,19 @@ export async function GET(request: NextRequest) {
             : 'Your body feels well-rested';
           recommendation = `${sleepNote} — you're in a good place today.${corrTip || ' A good day to move your body if you feel up to it.'}`;
         } else if (readiness >= 40) {
-          let helpNote = '';
-          if (strongest.name === 'sleep' && sleepHours) {
-            helpNote = `You got ${sleepHours} hours of sleep, which is helping`;
-          } else if (strongest.name === 'mood') {
-            helpNote = 'Your mood is a bright spot today';
-          } else {
-            helpNote = 'Some things are working in your favour';
-          }
-
-          let dragNote = '';
-          if (weakest.name === 'stress') {
-            dragNote = 'but stress is pulling your score down';
-          } else if (weakest.name === 'symptoms' && topSymptomLabel) {
-            dragNote = `but ${topSymptomLabel} is weighing on things`;
-          } else if (weakest.name === 'mood') {
-            dragNote = 'but your mood could use a boost';
-          } else if (weakest.name === 'sleep') {
-            dragNote = 'but lighter sleep is holding you back';
-          } else {
-            dragNote = 'but some things are weighing you down';
-          }
-
-          recommendation = `${helpNote}, ${dragNote}. Listen to what your body needs today.${corrTip}`;
+          const sleepNote = sleepHours
+            ? `You got ${sleepHours} hours of sleep, which is helping`
+            : 'Some things are working in your favour';
+          const dragNote = topSymptomLabel
+            ? `but ${topSymptomLabel} is weighing on things`
+            : 'but your body could use some extra care';
+          recommendation = `${sleepNote}, ${dragNote}. Listen to what your body needs today.${corrTip}`;
         } else {
-          let context = '';
-          if (weakest.name === 'sleep' && sleepHours) {
-            context = `Only ${sleepHours} hours of sleep is making everything feel harder`;
-          } else if (topSymptomLabel) {
-            context = `${topSymptomLabel.charAt(0).toUpperCase() + topSymptomLabel.slice(1)} and other symptoms are weighing heavily`;
-          } else {
-            context = 'Your body is carrying a lot today';
-          }
-
+          const context = sleepHours && sleepHours < 6
+            ? `Only ${sleepHours} hours of sleep is making everything feel harder`
+            : topSymptomLabel
+              ? `${topSymptomLabel.charAt(0).toUpperCase() + topSymptomLabel.slice(1)} is weighing heavily today`
+              : 'Your body is carrying a lot today';
           recommendation = `${context}. Be extra gentle with yourself — rest is productive too.${corrTip}`;
         }
       }
