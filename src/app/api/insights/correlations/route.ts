@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { db } from '@/db';
 import { dailyLogs, userCorrelations } from '@/db/schema';
-import { eq, desc, countDistinct, max } from 'drizzle-orm';
+import { eq, desc, countDistinct, max, sql } from 'drizzle-orm';
 // import { getUserTier } from '@/lib/feature-gate'; // Removed: showing all correlations now
 
 // ---------------------------------------------------------------------------
@@ -38,7 +38,7 @@ function generateHumanLabel(
   const symptomLabel = formatSymptomLabel(factorB);
   const verb = direction === 'positive' ? 'increases' : 'reduces';
   const rounded = Math.round(Math.abs(effectSizePct));
-  return `${factorLabel} ${verb} ${symptomLabel.toLowerCase()} by ${rounded}%`;
+  return `${factorLabel} ${verb} ${symptomLabel.toLowerCase()} by ${rounded}pp`;
 }
 
 function determineDataQuality(
@@ -73,7 +73,7 @@ export async function GET() {
     })
     .from(userCorrelations)
     .where(eq(userCorrelations.userId, userId))
-    .orderBy(desc(userCorrelations.effectSizePct));
+    .orderBy(desc(sql`ABS(${userCorrelations.effectSizePct})`));
 
   const totalFound = allCorrelations.length;
 

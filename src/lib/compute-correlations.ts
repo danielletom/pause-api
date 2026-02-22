@@ -249,22 +249,24 @@ function computeCrossCorrelations(
         }
 
         // Skip if insufficient data — need enough observations in both groups
-        if (totalOpportunities < 3 || daysWithoutFactor < 3) continue;
+        if (totalOpportunities < 7 || daysWithoutFactor < 7) continue;
 
         const rateWith = occurrences / totalOpportunities;
-        const confidence = rateWith; // kept for display, no longer a gate
         const rateWithout =
           daysWithoutFactor > 0
             ? symptomWithoutFactor / daysWithoutFactor
             : 0;
-        // Use risk difference when baseline is 0 (avoids division by near-zero)
-        const effectSizePct = rateWithout > 0.05
-          ? ((rateWith - rateWithout) / rateWithout) * 100
-          : (rateWith - rateWithout) * 100;
+
+        // Effect size: percentage‐point difference (intuitive for users)
+        // e.g. symptom on 40% of med-days vs 20% without → +20pp
+        const rawDiffPp = (rateWith - rateWithout) * 100;
+        const effectSizePct = Math.max(-100, Math.min(200, rawDiffPp));
         const direction: 'positive' | 'negative' =
           rateWith > rateWithout ? 'positive' : 'negative';
+        const confidence = Math.min(occurrences, totalOpportunities - occurrences)
+          / totalOpportunities; // balanced confidence: penalises 0% or 100% rates
 
-        // Skip trivially small effects
+        // Skip trivially small effects (less than 15 percentage points difference)
         const absEffect = Math.abs(effectSizePct);
         if (absEffect < 15) continue;
 
