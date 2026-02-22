@@ -332,6 +332,39 @@ export const gratitudeEntries = pgTable("gratitude_entries", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ── Interpreted Insights ────────────────────────────────────────────────────
+// Multi-agent pipeline output: naturopath-interpreted, delivery-formatted
+export const interpretedInsights = pgTable("interpreted_insights", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  date: date("date").notNull(),
+
+  // Agent 2 (Naturopath) full structured output
+  rawInsightJson: jsonb("raw_insight_json").notNull(),
+
+  // Agent 3 (Delivery) pre-formatted text surfaces
+  homeNarrative: text("home_narrative"),
+  weeklyStory: text("weekly_story"),
+  forecast: text("forecast"),
+  insightNudgeTitle: text("insight_nudge_title"),
+  insightNudgeBody: text("insight_nudge_body"),
+
+  // Structured data surfaces
+  correlationInsightsJson: jsonb("correlation_insights_json"),
+  helpsHurtsJson: jsonb("helps_hurts_json"),
+  symptomGuidanceJson: jsonb("symptom_guidance_json"),
+  contradictionsJson: jsonb("contradictions_json"),
+
+  // Pipeline metadata
+  modelUsed: text("model_used"),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  latencyMs: integer("latency_ms"),
+  pipelineVersion: integer("pipeline_version").default(1),
+  status: text("status").default("complete"),
+  computedAt: timestamp("computed_at").defaultNow(),
+});
+
 // ── Content Pipeline ────────────────────────────────────────────────────────
 // Tracks production status per content item per pipeline stage
 export const contentPipeline = pgTable("content_pipeline", {

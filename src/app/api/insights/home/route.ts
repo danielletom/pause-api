@@ -9,6 +9,7 @@ import {
   userCorrelations,
   narratives,
   content,
+  interpretedInsights,
 } from '@/db/schema';
 import { eq, and, desc, sql, isNull, isNotNull } from 'drizzle-orm';
 import { computeScoresForUser, computeStreak } from '@/lib/compute-scores';
@@ -64,6 +65,20 @@ export async function GET(request: NextRequest) {
     const date =
       searchParams.get('date') || new Date().toISOString().split('T')[0]!;
 
+    // 0. Check for pre-computed pipeline insights (from nightly naturopath agent)
+    const pipelineRows = await db
+      .select()
+      .from(interpretedInsights)
+      .where(
+        and(
+          eq(interpretedInsights.userId, userId),
+          eq(interpretedInsights.date, date),
+        ),
+      )
+      .limit(1);
+
+    const pipelineInsight = pipelineRows.length > 0 ? pipelineRows[0] : null;
+
     // 1. Recompute readiness scores from latest logs
     //    Compare with cached score to decide whether the AI narrative
     //    needs regenerating (avoids unnecessary API calls while still
@@ -100,8 +115,10 @@ export async function GET(request: NextRequest) {
       ? new Date(latestLogTime).getTime() > new Date(cachedAt).getTime()
       : false;
 
-    // Reuse cached recommendation only if no new logs have arrived
-    if (cachedRecommendation && !hasNewLogsSinceCached) {
+    // Prefer pipeline narrative > cached recommendation > regenerate
+    if (pipelineInsight?.homeNarrative) {
+      recommendation = pipelineInsight.homeNarrative;
+    } else if (cachedRecommendation && !hasNewLogsSinceCached) {
       recommendation = cachedRecommendation;
     }
 
@@ -202,7 +219,13 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    if (correlationRows.length > 0) {
+    // Prefer pipeline nudge if available
+    if (pipelineInsight?.insightNudgeTitle && pipelineInsight?.insightNudgeBody) {
+      insightNudge = {
+        title: pipelineInsight.insightNudgeTitle,
+        body: pipelineInsight.insightNudgeBody,
+      };
+    } else if (correlationRows.length > 0) {
       const c = correlationRows[0]!;
       const lagText = c.lagDays === 1 ? '1 day' : `${c.lagDays ?? 0} day(s)`;
       insightNudge = {
@@ -314,20 +337,24 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 5. Get latest weekly story narrative
+    // 5. Get latest weekly story narrative — prefer pipeline
     let narrativeText: string | null = null;
 
-    const narrativeRows = await db
-      .select()
-      .from(narratives)
-      .where(
-        and(eq(narratives.userId, userId), eq(narratives.type, 'weekly_story'))
-      )
-      .orderBy(desc(narratives.date))
-      .limit(1);
+    if (pipelineInsight?.weeklyStory) {
+      narrativeText = pipelineInsight.weeklyStory;
+    } else {
+      const narrativeRows = await db
+        .select()
+        .from(narratives)
+        .where(
+          and(eq(narratives.userId, userId), eq(narratives.type, 'weekly_story'))
+        )
+        .orderBy(desc(narratives.date))
+        .limit(1);
 
-    if (narrativeRows.length > 0) {
-      narrativeText = narrativeRows[0]!.text;
+      if (narrativeRows.length > 0) {
+        narrativeText = narrativeRows[0]!.text;
+      }
     }
 
     // 6. Get streak
@@ -417,9 +444,12 @@ export async function GET(request: NextRequest) {
       console.error('[insights/home] Suggested audio error:', err);
     }
 
-    // 8. Tomorrow's forecast — real prediction based on patterns
-    let tomorrowForecast: string | null = null;
+    // 8. Tomorrow's forecast — prefer pipeline, fall back to heuristic
+    let tomorrowForecast: string | null = pipelineInsight?.forecast ?? null;
     try {
+      if (tomorrowForecast) {
+        // Pipeline already provided — skip heuristic
+      } else
       if (readiness != null && readinessComponents) {
         const sleepComp = readinessComponents.sleep ?? 0;
         const moodComp = readinessComponents.mood ?? 0;

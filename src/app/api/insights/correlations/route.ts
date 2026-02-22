@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { db } from '@/db';
-import { dailyLogs, userCorrelations } from '@/db/schema';
-import { eq, desc, countDistinct, max, sql } from 'drizzle-orm';
+import { dailyLogs, userCorrelations, interpretedInsights } from '@/db/schema';
+import { eq, and, desc, countDistinct, max, sql } from 'drizzle-orm';
 // import { getUserTier } from '@/lib/feature-gate'; // Removed: showing all correlations now
 
 // ---------------------------------------------------------------------------
@@ -103,27 +103,85 @@ export async function GET() {
   const distinctDates = Number(dateCountResult[0]?.dateCount ?? 0);
   const dataQuality = determineDataQuality(distinctDates);
 
-  // Shape the response
-  const correlations = visibleCorrelations.map((c) => ({
-    factor: c.factorA,
-    symptom: c.factorB,
-    direction: c.direction as 'positive' | 'negative',
-    confidence: c.confidence,
-    effectSizePct: c.effectSizePct,
-    occurrences: c.occurrences,
-    lagDays: c.lagDays,
-    humanLabel: generateHumanLabel(
-      c.factorA,
-      c.factorB,
-      c.direction as 'positive' | 'negative',
-      c.effectSizePct!,
-    ),
-  }));
+  // Load naturopath enrichments if available
+  const today = new Date().toISOString().split('T')[0]!;
+  const pipelineRows = await db
+    .select({
+      correlationInsightsJson: interpretedInsights.correlationInsightsJson,
+      helpsHurtsJson: interpretedInsights.helpsHurtsJson,
+      contradictionsJson: interpretedInsights.contradictionsJson,
+    })
+    .from(interpretedInsights)
+    .where(
+      and(
+        eq(interpretedInsights.userId, userId),
+        eq(interpretedInsights.date, today),
+      ),
+    )
+    .limit(1);
 
-  return NextResponse.json({
+  const pipelineInsight = pipelineRows.length > 0 ? pipelineRows[0] : null;
+
+  // Build a lookup map from pipeline correlation insights
+  const insightMap = new Map<
+    string,
+    { explanation: string; mechanism: string; recommendation: string; caveat: string | null }
+  >();
+  if (pipelineInsight?.correlationInsightsJson) {
+    const insights = pipelineInsight.correlationInsightsJson as {
+      factor: string;
+      symptom: string;
+      explanation: string;
+      mechanism: string;
+      recommendation: string;
+      caveat: string | null;
+    }[];
+    for (const ins of insights) {
+      insightMap.set(`${ins.factor}__${ins.symptom}`, ins);
+    }
+  }
+
+  // Shape the response — enrich with naturopath fields when available
+  const correlations = visibleCorrelations.map((c) => {
+    const enrichment = insightMap.get(`${c.factorA}__${c.factorB}`);
+    return {
+      factor: c.factorA,
+      symptom: c.factorB,
+      direction: c.direction as 'positive' | 'negative',
+      confidence: c.confidence,
+      effectSizePct: c.effectSizePct,
+      occurrences: c.occurrences,
+      lagDays: c.lagDays,
+      humanLabel: generateHumanLabel(
+        c.factorA,
+        c.factorB,
+        c.direction as 'positive' | 'negative',
+        c.effectSizePct!,
+      ),
+      // Naturopath enrichments (optional — frontend renders if present)
+      ...(enrichment && {
+        explanation: enrichment.explanation,
+        mechanism: enrichment.mechanism,
+        recommendation: enrichment.recommendation,
+        caveat: enrichment.caveat,
+      }),
+    };
+  });
+
+  // Build response with optional naturopath enrichments
+  const response: Record<string, unknown> = {
     correlations,
     lastComputed,
     dataQuality,
     totalFound,
-  });
+  };
+
+  if (pipelineInsight?.helpsHurtsJson) {
+    response.helpsHurts = pipelineInsight.helpsHurtsJson;
+  }
+  if (pipelineInsight?.contradictionsJson) {
+    response.contradictions = pipelineInsight.contradictionsJson;
+  }
+
+  return NextResponse.json(response);
 }
