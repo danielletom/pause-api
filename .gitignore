@@ -43,3 +43,4 @@ scripts/pipeline/data/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.env*.local

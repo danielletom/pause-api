@@ -37,6 +37,8 @@ export const profiles = pgTable("profiles", {
   periodCrossInsights: boolean("period_cross_insights").default(true),
   periodPromptDismissedAt: timestamp("period_prompt_dismissed_at"),
   menopauseDeclaredAt: timestamp("menopause_declared_at"),
+  // Program enrollment — set on first access to program content
+  programStartedAt: timestamp("program_started_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
