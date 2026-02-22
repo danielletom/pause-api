@@ -39,6 +39,7 @@ interface HomeResponse {
     taken: boolean;
   }[];
   recommendation: string | null;
+  isAiGenerated: boolean;
   narrative: string | null;
   suggestedAudio: {
     id: number;
@@ -86,6 +87,7 @@ export async function GET(request: NextRequest) {
     let readiness: number | null = null;
     let readinessComponents: Record<string, number> | null = null;
     let recommendation: string | null = null;
+    let isAiGenerated = false;
 
     // Read the previously cached score + recommendation before recomputing
     const scoreRows = await db
@@ -115,11 +117,14 @@ export async function GET(request: NextRequest) {
       ? new Date(latestLogTime).getTime() > new Date(cachedAt).getTime()
       : false;
 
-    // Prefer pipeline narrative > cached recommendation > regenerate
+    // Prefer pipeline narrative > cached AI recommendation > regenerate
     if (pipelineInsight?.homeNarrative) {
       recommendation = pipelineInsight.homeNarrative;
+      isAiGenerated = true;
     } else if (cachedRecommendation && !hasNewLogsSinceCached) {
+      // Use cached recommendation — only AI-generated content is cached now
       recommendation = cachedRecommendation;
+      isAiGenerated = true;
     }
 
     // 2. Get daily logs for symptom + stressor summary
@@ -206,7 +211,9 @@ export async function GET(request: NextRequest) {
 
     // Build top correlations for frontend
     const topCorrelations = correlationRows.map((c) => {
-      const factorLabel = c.factorA.replace(/_/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase());
+      const factorLabel = c.factorA.startsWith('med_')
+        ? c.factorA.slice(4).charAt(0).toUpperCase() + c.factorA.slice(5)
+        : c.factorA.replace(/_/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase());
       const symptomLabel = c.factorB.replace(/_/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase());
       const verb = c.direction === 'positive' ? 'increases' : 'reduces';
       const rounded = Math.round(Math.abs(c.effectSizePct ?? 0));
@@ -254,6 +261,8 @@ export async function GET(request: NextRequest) {
     }
 
     // 4b. Generate readiness recommendation inline if missing
+    //     AI is always attempted when no pipeline/cached AI result exists.
+    //     Template fallbacks are NOT cached so AI retries on next request.
     if (!recommendation && readiness != null && logs.length > 0) {
       // Find sleep hours from logs
       let sleepHours: number | null = null;
@@ -278,9 +287,30 @@ export async function GET(request: NextRequest) {
       // Try AI-generated narrative first, fall back to conversational template
       try {
         recommendation = await generateReadinessNarrative(scoreData, topCorrelations);
+        isAiGenerated = true;
+
+        // Cache ONLY AI-generated recommendations for future requests
+        // Template fallbacks are never cached — so AI will be retried next time
+        try {
+          const existingScore = await db
+            .select({ id: computedScores.id })
+            .from(computedScores)
+            .where(and(eq(computedScores.userId, userId), eq(computedScores.date, date)))
+            .limit(1);
+          if (existingScore.length > 0 && recommendation) {
+            await db
+              .update(computedScores)
+              .set({ recommendation })
+              .where(eq(computedScores.id, existingScore[0]!.id));
+          }
+        } catch {
+          // Non-fatal — caching failure doesn't break the response
+        }
       } catch (aiError) {
         console.error('[insights/home] AI narrative failed, using fallback:', aiError);
-        // Conversational fallback using actual data
+        isAiGenerated = false;
+
+        // Conversational fallback using actual data — NOT cached so AI retries next time
         const topSymptomLabel = topSymptom ? topSymptom.replace(/_/g, ' ') : null;
 
         let corrTip = '';
@@ -317,23 +347,6 @@ export async function GET(request: NextRequest) {
               : 'Your body is carrying a lot today';
           recommendation = `${context}. Be extra gentle with yourself — rest is productive too.${corrTip}`;
         }
-      }
-
-      // Cache the recommendation for future requests
-      try {
-        const existingScore = await db
-          .select({ id: computedScores.id })
-          .from(computedScores)
-          .where(and(eq(computedScores.userId, userId), eq(computedScores.date, date)))
-          .limit(1);
-        if (existingScore.length > 0 && recommendation) {
-          await db
-            .update(computedScores)
-            .set({ recommendation })
-            .where(eq(computedScores.id, existingScore[0]!.id));
-        }
-      } catch {
-        // Non-fatal — caching failure doesn't break the response
       }
     }
 
@@ -508,6 +521,7 @@ export async function GET(request: NextRequest) {
       insightNudge,
       medsToday,
       recommendation,
+      isAiGenerated,
       narrative: narrativeText,
       suggestedAudio,
       tomorrowForecast,

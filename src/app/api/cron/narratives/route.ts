@@ -278,7 +278,9 @@ export async function GET(request: NextRequest) {
           .orderBy(desc(userCorrelations.confidence))
           .limit(2);
         const corrData = userCorrs.map((c) => {
-          const factorLabel = c.factorA.replace(/_/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase());
+          const factorLabel = c.factorA.startsWith('med_')
+            ? c.factorA.slice(4).charAt(0).toUpperCase() + c.factorA.slice(5)
+            : c.factorA.replace(/_/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase());
           const symptomLabel = c.factorB.replace(/_/g, ' ').replace(/\b\w/g, (ch: string) => ch.toUpperCase());
           const verb = c.direction === 'positive' ? 'increases' : 'reduces';
           const rounded = Math.round(Math.abs(c.effectSizePct ?? 0));
