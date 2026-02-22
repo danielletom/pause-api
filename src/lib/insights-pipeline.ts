@@ -351,14 +351,17 @@ async function processUser(
     return { tokens: inputTokens + outputTokens, status: 'complete' };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
+    const errName = err instanceof Error ? err.constructor.name : typeof err;
+    const errCause = err instanceof Error && err.cause ? String(err.cause) : undefined;
     console.error(
-      `[insights-pipeline] AI failed for ${userId}: ${errMsg}`,
+      `[insights-pipeline] AI failed for ${userId}: [${errName}] ${errMsg}`,
+      errCause ? `cause: ${errCause}` : '',
     );
 
-    // Fallback on any failure
+    // Fallback on any failure — embed error detail for debugging
     const fallbackInsight = generateFallbackInsight(ctx);
     await deliverInsights(userId, date, fallbackInsight, {
-      modelUsed: 'fallback',
+      modelUsed: `fallback:${errName}:${errMsg.slice(0, 200)}`,
       inputTokens: 0,
       outputTokens: 0,
       latencyMs: 0,

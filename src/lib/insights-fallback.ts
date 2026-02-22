@@ -37,7 +37,7 @@ export function generateFallbackInsight(
       symptom: c.factorB,
       direction: c.direction,
       effectPp: c.effectSizePct,
-      explanation: `Your data shows ${factorLabel.toLowerCase()} ${verb} ${symptomLabel} by ${absPp} percentage points.`,
+      explanation: `Your data shows ${factorLabel.toLowerCase()} ${verb} ${symptomLabel} by ${absPp}%.`,
       mechanism: '',
       actionable: absPp >= 20,
       recommendation:
@@ -60,7 +60,7 @@ export function generateFallbackInsight(
     const entry = {
       factor: c.factorA,
       symptom: c.factorB,
-      explanation: `${formatFactor(c.factorA)} ${c.direction === 'negative' ? 'reduces' : 'increases'} ${formatSymptom(c.factorB)} by ${Math.round(Math.abs(c.effectSizePct))}pp.`,
+      explanation: `${formatFactor(c.factorA)} ${c.direction === 'negative' ? 'reduces' : 'increases'} ${formatSymptom(c.factorB)} by ${Math.round(Math.abs(c.effectSizePct))}%.`,
       strength: Math.abs(c.effectSizePct),
     };
     if (c.direction === 'negative') {

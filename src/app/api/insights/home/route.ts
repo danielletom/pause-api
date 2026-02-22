@@ -215,7 +215,7 @@ export async function GET(request: NextRequest) {
         symptom: c.factorB,
         direction: c.direction,
         effectSizePct: c.effectSizePct ?? 0,
-        humanLabel: `${factorLabel} ${verb} ${symptomLabel.toLowerCase()} by ${rounded}pp`,
+        humanLabel: `${factorLabel} ${verb} ${symptomLabel.toLowerCase()} by ${rounded}%`,
       };
     });
 

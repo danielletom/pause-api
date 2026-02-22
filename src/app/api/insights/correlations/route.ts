@@ -38,7 +38,7 @@ function generateHumanLabel(
   const symptomLabel = formatSymptomLabel(factorB);
   const verb = direction === 'positive' ? 'increases' : 'reduces';
   const rounded = Math.round(Math.abs(effectSizePct));
-  return `${factorLabel} ${verb} ${symptomLabel.toLowerCase()} by ${rounded}pp`;
+  return `${factorLabel} ${verb} ${symptomLabel.toLowerCase()} by ${rounded}%`;
 }
 
 function determineDataQuality(

@@ -142,9 +142,9 @@ CORRELATION QUALITY:
 - 7-14 occurrences: low confidence — note "early signal, needs more data"
 - 15-30 occurrences: moderate confidence — "your data suggests"
 - 30+ occurrences: high confidence — "your data clearly shows"
-- Effects under 20pp: small effect, may be noise
-- Effects 20-40pp: moderate effect, likely real
-- Effects 40pp+: strong effect, very likely meaningful
+- Effects under 20%: small effect, may be noise
+- Effects 20-40%: moderate effect, likely real
+- Effects 40%+: strong effect, very likely meaningful
 - Lag 0: same-day correlation — could be cause or effect
 - Lag 1-2: plausible biological mechanism
 - Lag 5-7: more likely coincidence unless there's a known mechanism
@@ -152,7 +152,7 @@ CORRELATION QUALITY:
 RULES:
 1. NEVER diagnose or say "you have [condition]"
 2. NEVER recommend starting or stopping medications — say "discuss with your doctor"
-3. Always note "correlation not causation" for effects below 30pp
+3. Always note "correlation not causation" for effects below 30%
 4. Consider medication TIMING as an explanation before blaming the medication
 5. Warm, conversational tone — knowledgeable friend, not textbook
 6. Personalise to THIS user's data, never give generic advice
@@ -162,7 +162,51 @@ RULES:
 10. Nudge title: max 6 words. Nudge body: max 30 words.
 
 OUTPUT FORMAT:
-Return valid JSON matching the NaturopathInsight schema exactly. No markdown, no code fences.`;
+Return ONLY valid JSON with these exact top-level keys (no extra keys):
+{
+  "correlationInsights": [
+    {
+      "factor": "med_Vitamin D",
+      "symptom": "sleep_disruption",
+      "direction": "positive",
+      "effectPp": 50,
+      "explanation": "Vitamin D is stimulating and taking it later...",
+      "mechanism": "Vitamin D affects cortisol timing...",
+      "actionable": true,
+      "recommendation": "Try shifting your Vitamin D dose to morning...",
+      "caveat": null,
+      "confidenceLevel": "high"
+    }
+  ],
+  "dailyNarrative": "Two warm sentences about today...",
+  "weeklyStory": "Two to three sentences about the week...",
+  "forecast": "One to two sentences about what to watch...",
+  "insightNudge": {
+    "title": "Max Six Words Here",
+    "body": "One actionable sentence under 30 words."
+  },
+  "helpsHurts": {
+    "helps": [{ "factor": "exercised", "symptom": "mood_changes", "explanation": "...", "strength": 35 }],
+    "hurts": [{ "factor": "alcohol", "symptom": "hot_flashes", "explanation": "...", "strength": 36 }]
+  },
+  "contradictions": [
+    {
+      "factor": "med_Magnesium Glycinate",
+      "helpsSymptom": "anxiety",
+      "hurtsSymptom": "night_sweats",
+      "explanation": "Magnesium calms anxiety but can cause GI disturbance leading to sweats."
+    }
+  ],
+  "symptomGuidance": {
+    "night_sweats": {
+      "explanation": "Your night sweats are linked to...",
+      "recommendations": ["Try moving magnesium to earlier evening..."],
+      "relatedFactors": ["med_Magnesium Glycinate", "alcohol"]
+    }
+  }
+}
+
+CRITICAL: You MUST populate correlationInsights for each correlation in the input data. You MUST populate helpsHurts based on direction. You MUST give a meaningful insightNudge title and body. No markdown, no code fences — raw JSON only.`;
 
 // ---------------------------------------------------------------------------
 // Build the user prompt from context
@@ -245,7 +289,7 @@ function buildUserPrompt(ctx: UserInsightContext): string {
       const dir = c.direction === 'positive' ? '↑ increases' : '↓ reduces';
       const lag = c.lagDays > 0 ? ` (${c.lagDays}-day lag)` : ' (same day)';
       parts.push(
-        `- ${c.factorA.replace(/_/g, ' ')} ${dir} ${c.factorB.replace(/_/g, ' ')} by ${Math.round(Math.abs(c.effectSizePct))}pp${lag} [n=${c.occurrences}]`,
+        `- ${c.factorA.replace(/_/g, ' ')} ${dir} ${c.factorB.replace(/_/g, ' ')} by ${Math.round(Math.abs(c.effectSizePct))}%${lag} [n=${c.occurrences}]`,
       );
     }
   }
@@ -273,6 +317,7 @@ export async function interpretInsights(
     temperature: 0.4,
     system: NATUROPATH_SYSTEM_PROMPT,
     prompt: userPrompt,
+    maxRetries: 0, // No retries — fail fast, pipeline handles fallback
   });
 
   const latencyMs = Date.now() - startMs;
