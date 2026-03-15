@@ -110,6 +110,8 @@ export async function GET() {
       correlationInsightsJson: interpretedInsights.correlationInsightsJson,
       helpsHurtsJson: interpretedInsights.helpsHurtsJson,
       contradictionsJson: interpretedInsights.contradictionsJson,
+      weeklyStory: interpretedInsights.weeklyStory,
+      symptomGuidanceJson: interpretedInsights.symptomGuidanceJson,
     })
     .from(interpretedInsights)
     .where(
@@ -181,6 +183,12 @@ export async function GET() {
   }
   if (pipelineInsight?.contradictionsJson) {
     response.contradictions = pipelineInsight.contradictionsJson;
+  }
+  if (pipelineInsight?.weeklyStory) {
+    response.weeklyStory = pipelineInsight.weeklyStory;
+  }
+  if (pipelineInsight?.symptomGuidanceJson) {
+    response.symptomGuidance = pipelineInsight.symptomGuidanceJson;
   }
 
   return NextResponse.json(response);
