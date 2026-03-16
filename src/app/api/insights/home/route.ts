@@ -36,6 +36,7 @@ interface HomeResponse {
     name: string;
     dose: string | null;
     time: string | null;
+    type: string | null;
     taken: boolean;
   }[];
   recommendation: string | null;
@@ -80,32 +81,25 @@ export async function GET(request: NextRequest) {
 
     const pipelineInsight = pipelineRows.length > 0 ? pipelineRows[0] : null;
 
-    // 1. Recompute readiness scores from latest logs
-    //    Compare with cached score to decide whether the AI narrative
-    //    needs regenerating (avoids unnecessary API calls while still
-    //    reflecting evening check-in data in the score).
+    // 1. Readiness score — only recompute when new logs exist since last computation
+    //    This avoids redundant DB writes + score recalculations on every page view.
     let readiness: number | null = null;
     let readinessComponents: Record<string, number> | null = null;
     let recommendation: string | null = null;
     let isAiGenerated = false;
 
-    // Read the previously cached score + recommendation before recomputing
+    // Read the previously cached score + recommendation
     const scoreRows = await db
       .select()
       .from(computedScores)
       .where(
         and(eq(computedScores.userId, userId), eq(computedScores.date, date))
       );
-    const cachedRecommendation = scoreRows.length > 0 ? scoreRows[0]!.recommendation : null;
-    const cachedAt = scoreRows.length > 0 ? scoreRows[0]!.createdAt : null;
+    const cachedScore = scoreRows.length > 0 ? scoreRows[0]! : null;
+    const cachedRecommendation = cachedScore?.recommendation ?? null;
+    const cachedAt = cachedScore?.createdAt ?? null;
 
-    // Recompute from all logs (morning + evening)
-    const computed = await computeScoresForUser(userId, date);
-    readiness = computed.readiness;
-    readinessComponents = computed.components as Record<string, number> | null;
-
-    // Check if new logs arrived since the narrative was cached
-    // If a new check-in was added, regenerate so the narrative reflects it
+    // Check if new logs arrived since the score was last computed
     const latestLog = await db
       .select({ loggedAt: dailyLogs.loggedAt })
       .from(dailyLogs)
@@ -116,6 +110,23 @@ export async function GET(request: NextRequest) {
     const hasNewLogsSinceCached = cachedAt && latestLogTime
       ? new Date(latestLogTime).getTime() > new Date(cachedAt).getTime()
       : false;
+
+    // Only recompute scores when: no cached score exists, OR new logs since last computation
+    if (!cachedScore || hasNewLogsSinceCached) {
+      const computed = await computeScoresForUser(userId, date);
+      readiness = computed.readiness;
+      readinessComponents = computed.components as Record<string, number> | null;
+    } else {
+      // Use cached score — no new check-in since last computation
+      readiness = cachedScore.readiness;
+      readinessComponents = (cachedScore.componentsJson as Record<string, number>) ?? null;
+    }
+
+    // Apply naturopath's readiness adjustment if pipeline insight exists
+    if (pipelineInsight?.readinessAdjustment && readiness != null) {
+      const adj = pipelineInsight.readinessAdjustment as number;
+      readiness = Math.min(99, Math.max(5, readiness + adj));
+    }
 
     // Prefer pipeline narrative > cached AI recommendation > regenerate
     if (pipelineInsight?.homeNarrative) {
@@ -196,18 +207,48 @@ export async function GET(request: NextRequest) {
       name: med.name,
       dose: med.dose,
       time: med.time,
+      type: med.type,
       taken: takenMedIds.has(med.id),
     }));
 
     // 4. Get top user correlations — used for nudge AND enriching recommendation
+    //    Fetch more than needed so we can diversify (max 1 per factor + max 1 per symptom)
     let insightNudge: { title: string; body: string } | null = null;
 
-    const correlationRows = await db
+    const rawCorrelationRows = await db
       .select()
       .from(userCorrelations)
       .where(eq(userCorrelations.userId, userId))
       .orderBy(desc(userCorrelations.confidence))
-      .limit(3);
+      .limit(15);
+
+    // Diversify: pick top correlations ensuring no repeated factors AND varied symptoms
+    const seenFactors = new Set<string>();
+    const seenSymptoms = new Set<string>();
+    const correlationRows: typeof rawCorrelationRows = [];
+    for (const row of rawCorrelationRows) {
+      if (correlationRows.length >= 3) break;
+      // Skip if we already have a correlation for this factor
+      if (seenFactors.has(row.factorA)) continue;
+      // Prefer diverse symptoms too (but don't hard-block — allow if nothing else)
+      if (seenSymptoms.has(row.factorB) && correlationRows.length < 2) {
+        // Try to find a different symptom first — skip for now, may pick up later
+        continue;
+      }
+      seenFactors.add(row.factorA);
+      seenSymptoms.add(row.factorB);
+      correlationRows.push(row);
+    }
+    // If diversity filtering was too strict, fill remaining slots
+    if (correlationRows.length < 3) {
+      for (const row of rawCorrelationRows) {
+        if (correlationRows.length >= 3) break;
+        if (correlationRows.some((r) => r.id === row.id)) continue;
+        if (seenFactors.has(row.factorA)) continue; // Still enforce unique factors
+        seenFactors.add(row.factorA);
+        correlationRows.push(row);
+      }
+    }
 
     // Build top correlations for frontend
     const topCorrelations = correlationRows.map((c) => {
