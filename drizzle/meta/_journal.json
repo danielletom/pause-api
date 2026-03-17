@@ -29,6 +29,13 @@
       "when": 1771242482341,
       "tag": "0003_black_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1773729175269,
+      "tag": "0004_tranquil_living_tribunal",
+      "breakpoints": true
     }
   ]
 }

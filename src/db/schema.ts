@@ -371,6 +371,16 @@ export const interpretedInsights = pgTable("interpreted_insights", {
   computedAt: timestamp("computed_at").defaultNow(),
 });
 
+// ── Waitlist ────────────────────────────────────────────────────────────────
+// Product interest / waitlist signups (e.g. supplement)
+export const waitlist = pgTable("waitlist", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  email: text("email"),
+  product: text("product").notNull(), // 'supplement' | future products
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // ── Content Pipeline ────────────────────────────────────────────────────────
 // Tracks production status per content item per pipeline stage
 export const contentPipeline = pgTable("content_pipeline", {
