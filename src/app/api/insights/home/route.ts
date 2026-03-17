@@ -456,7 +456,7 @@ export async function GET(request: NextRequest) {
             isNull(content.programWeek) // Exclude program episodes
           )
         )
-        .orderBy(sql`RANDOM()`)
+        .orderBy(content.id)
         .limit(20);
 
       if (audioItems.length > 0) {
