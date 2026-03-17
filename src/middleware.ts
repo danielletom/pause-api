@@ -5,6 +5,7 @@ const isPublicRoute = createRouteMatcher([
   '/api/cron/(.*)',
   '/api/webhooks/(.*)',
   '/api/content(.*)',
+  '/api/admin/(.*)',
   '/audio/(.*)',
 ]);
 
