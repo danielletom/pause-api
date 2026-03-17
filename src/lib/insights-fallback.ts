@@ -200,6 +200,8 @@ export function generateFallbackInsight(
     weeklyStory,
     forecast,
     insightNudge,
+    readinessAdjustment: 0, // fallback doesn't adjust — no AI context
+    readinessRationale: '',
     helpsHurts: { helps: helps.slice(0, 5), hurts: hurts.slice(0, 5) },
     contradictions,
     symptomGuidance,

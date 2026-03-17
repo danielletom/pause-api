@@ -217,9 +217,9 @@ export const content = pgTable("content", {
   status: text("status").default("draft"), // 'draft' | 'ready' | 'published'
   sortOrder: integer("sort_order").default(0),
   // Program assignment
-  programId: text("program_id"), // 'main' (8-week), 'better_sleep', 'hot_flash_relief', 'mood_calm', 'movement', or custom
-  programWeek: integer("program_week"), // 1-8, null if not in program
-  programDay: integer("program_day"), // 1-5, null if not in program
+  programId: text("program_id"), // 'main' (14-day), 'better_sleep', 'hot_flash_relief', 'mood_calm', 'movement', or custom
+  programWeek: integer("program_week"), // phase number 1-5, null if not in program
+  programDay: integer("program_day"), // absolute day 1-14, null if not in program
   programAction: text("program_action"), // "Tonight's Plan Action" text
   // Metrics
   listensCount: integer("listens_count").default(0),
@@ -350,6 +350,10 @@ export const interpretedInsights = pgTable("interpreted_insights", {
   forecast: text("forecast"),
   insightNudgeTitle: text("insight_nudge_title"),
   insightNudgeBody: text("insight_nudge_body"),
+
+  // Readiness score adjustment from naturopath AI
+  readinessAdjustment: integer("readiness_adjustment").default(0),
+  readinessRationale: text("readiness_rationale"),
 
   // Structured data surfaces
   correlationInsightsJson: jsonb("correlation_insights_json"),

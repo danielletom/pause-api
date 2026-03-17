@@ -78,7 +78,7 @@ const STATUSES = ["draft", "scheduled", "published"];
 const PRODUCTION_TOOLS = ["NotebookLM", "Wondercraft", "ElevenLabs", "Wondercraft + ElevenLabs", "Wondercraft + ZENmix", "Claude", "Manual"];
 
 const PROGRAMS: { id: string; label: string; icon: string; color: string; bgColor: string }[] = [
-  { id: "main", label: "8-Week Program", icon: "\u2726", color: "text-amber-600", bgColor: "bg-amber-50 border-amber-200" },
+  { id: "main", label: "14-Day Program", icon: "\u2726", color: "text-amber-600", bgColor: "bg-amber-50 border-amber-200" },
   { id: "better_sleep", label: "Better Sleep", icon: "\u263D", color: "text-indigo-600", bgColor: "bg-indigo-50 border-indigo-200" },
   { id: "hot_flash_relief", label: "Hot Flash Relief", icon: "\u2744", color: "text-teal-600", bgColor: "bg-teal-50 border-teal-200" },
   { id: "mood_calm", label: "Mood & Calm", icon: "\u25C9", color: "text-emerald-600", bgColor: "bg-emerald-50 border-emerald-200" },
@@ -486,9 +486,9 @@ export default function ContentManager() {
 
                 {/* Program progress */}
                 <div className="bg-white rounded-2xl border border-stone-100 p-6">
-                  <h2 className="text-sm font-bold text-stone-900 mb-4">8-Week Program</h2>
+                  <h2 className="text-sm font-bold text-stone-900 mb-4">14-Day Program</h2>
                   <div className="space-y-3">
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((w) => {
+                    {[1, 2, 3, 4, 5].map((w) => {
                       const wItems = items.filter((i) => i.programWeek === w);
                       const pub = wItems.filter((i) => i.status === "published").length;
                       return (
@@ -508,12 +508,12 @@ export default function ContentManager() {
                     })}
                   </div>
                   <div className="mt-4 pt-4 border-t border-stone-100">
-                    <p className="text-xs text-stone-400">40 lessons total</p>
+                    <p className="text-xs text-stone-400">14 lessons total</p>
                     <div className="h-2 bg-stone-100 rounded-full mt-2">
-                      <div className="h-full bg-amber-400 rounded-full" style={{ width: `${(items.filter(i => i.programWeek && i.status === "published").length / 40) * 100}%` }} />
+                      <div className="h-full bg-amber-400 rounded-full" style={{ width: `${(items.filter(i => i.programWeek && i.status === "published").length / 14) * 100}%` }} />
                     </div>
                     <p className="text-xs text-amber-600 mt-1 font-medium">
-                      {items.filter(i => i.programWeek && i.status === "published").length} of 40 published
+                      {items.filter(i => i.programWeek && i.status === "published").length} of 14 published
                     </p>
                   </div>
                 </div>
@@ -778,7 +778,7 @@ export default function ContentManager() {
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <h1 className="text-2xl font-bold text-stone-900">Programs</h1>
-                  <p className="text-sm text-stone-400 mt-1">8-week curriculum + focused programs</p>
+                  <p className="text-sm text-stone-400 mt-1">14-day curriculum + focused programs</p>
                 </div>
                 <button onClick={() => openEditor(null)} className="bg-stone-900 text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 hover:bg-stone-800">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
@@ -876,13 +876,13 @@ export default function ContentManager() {
                 })()}
               </div>
 
-              {/* 8-Week Program Grid */}
+              {/* 14-Day Program Grid */}
               <h2 className="text-sm font-bold text-stone-900 mb-3 flex items-center gap-2">
-                <span className="text-lg">{"\u2726"}</span> 8-Week Program
-                <span className="text-xs font-normal text-stone-400 ml-1">40 lessons &middot; 5 per week</span>
+                <span className="text-lg">{"\u2726"}</span> 14-Day Program
+                <span className="text-xs font-normal text-stone-400 ml-1">14 lessons &middot; 5 phases</span>
               </h2>
               <div className="space-y-4">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((wNum) => {
+                {[1, 2, 3, 4, 5].map((wNum) => {
                   const days = items
                     .filter((c) => c.programWeek === wNum && (!c.programId || c.programId === "main"))
                     .sort((a, b) => (a.programDay || 0) - (b.programDay || 0));
@@ -1060,7 +1060,7 @@ export default function ContentManager() {
                   <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 text-lg font-bold">{"\u2726"}</div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-stone-900">Pause_Content_Plan.docx</p>
-                    <p className="text-xs text-stone-400">8-week program (40 lessons) + library content (32 pieces) = {items.length} items{items.length > 0 ? " already imported" : ""}</p>
+                    <p className="text-xs text-stone-400">14-day program (14 lessons) + library content (32 pieces) = {items.length} items{items.length > 0 ? " already imported" : ""}</p>
                   </div>
                   <button
                     onClick={async () => {
@@ -1099,13 +1099,13 @@ export default function ContentManager() {
               {/* Preview */}
               <div className="grid grid-cols-2 gap-6">
                 <div className="bg-white rounded-2xl border border-stone-100 p-6">
-                  <h2 className="text-sm font-bold text-stone-900 mb-3">8-Week Program ({items.filter(i => i.programWeek).length} lessons)</h2>
+                  <h2 className="text-sm font-bold text-stone-900 mb-3">14-Day Program ({items.filter(i => i.programWeek).length} lessons)</h2>
                   <div className="space-y-2 max-h-96 overflow-y-auto">
                     {items.filter((i) => i.programWeek).sort((a, b) => (a.programWeek! - b.programWeek!) || (a.programDay! - b.programDay!)).map((p) => (
                       <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg bg-stone-50">
                         <span>{TYPE_ICONS[p.contentType] || ""}</span>
                         <div className="flex-1">
-                          <p className="text-xs font-medium text-stone-800">W{p.programWeek}D{p.programDay}: {p.title}</p>
+                          <p className="text-xs font-medium text-stone-800">P{p.programWeek}D{p.programDay}: {p.title}</p>
                           <p className="text-xs text-stone-400">{TYPE_LABELS[p.contentType] || p.contentType} &middot; {p.durationMinutes ? `${p.durationMinutes} min` : ""}</p>
                         </div>
                         <span className={`tag ${STATUS_COLORS[p.status]}`}>{p.status.charAt(0).toUpperCase() + p.status.slice(1)}</span>

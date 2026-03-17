@@ -23,7 +23,7 @@ function computeSleepScore(
   quality: string | null,
   disruptions: number | null
 ): number {
-  if (hours == null) return 50; // default when no data
+  if (hours == null) return 65; // assume okay-ish when no data — don't penalise
 
   // Base score from hours (target = 8h)
   let score = Math.min(100, Math.max(10, (hours / 8) * 85));
@@ -43,7 +43,7 @@ function computeSleepScore(
 }
 
 function computeMoodScore(mood: number | null): number {
-  if (mood == null) return 50; // default
+  if (mood == null) return 65; // assume okay when no data — don't drag score down
   return mood * 20; // 1-5 scale -> 20-100
 }
 
@@ -55,7 +55,14 @@ function computeSymptomScore(symptoms: SymptomsEntry[]): number {
   const avgSeverity =
     nonStressorSymptoms.reduce((sum, s) => sum + (s.severity ?? 0), 0) / count;
 
-  return Math.max(10, 100 - count * 10 - avgSeverity * 3);
+  // Softer penalty: having 5+ symptoms is common in perimenopause.
+  // Use diminishing returns — cap the count penalty at 40 points.
+  // Old formula: 100 - count * 10 - avgSeverity * 3 (5 symptoms = -50!)
+  // New formula: count penalty capped, severity weighted more
+  const countPenalty = Math.min(40, count * 6);
+  const severityPenalty = avgSeverity * 4;
+
+  return Math.max(10, 100 - countPenalty - severityPenalty);
 }
 
 function computeStressorScore(
@@ -67,7 +74,8 @@ function computeStressorScore(
   const totalStressors = symptomStressors + contextStressorCount;
   if (totalStressors === 0) return 100;
 
-  return Math.max(10, 100 - totalStressors * 12);
+  // Soften slightly — cap at 40 point penalty (was unlimited at 12 per stressor)
+  return Math.max(10, 100 - Math.min(40, totalStressors * 10));
 }
 
 function computeReadiness(components: ScoreComponents): number {

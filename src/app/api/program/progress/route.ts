@@ -4,26 +4,31 @@ import { db } from "@/db";
 import { content, programProgress, profiles } from "@/db/schema";
 import { eq, and, isNotNull, asc } from "drizzle-orm";
 
-// Week titles for The Pause Pod 8-week program
-const WEEK_TITLES: Record<number, string> = {
-  1: "Understanding Menopause",
-  2: "Sleep & Night Sweats",
-  3: "Hot Flashes & Temperature",
-  4: "Mood & Emotional Health",
-  5: "Nutrition & Weight",
-  6: "Brain Fog & Memory",
-  7: "Bones, Joints & Heart",
-  8: "Thriving in Menopause",
+// Phase titles for The Pause Pod 14-day program
+const PHASE_TITLES: Record<number, string> = {
+  1: "Understand",
+  2: "Track & Sleep",
+  3: "Symptoms",
+  4: "Body & Fuel",
+  5: "Your Plan",
 };
 
-const DAYS_PER_WEEK = 5;
-const TOTAL_WEEKS = 8;
-const MAX_DAYS = DAYS_PER_WEEK * TOTAL_WEEKS; // 40
+// Which absolute days belong to each phase
+const PHASE_DAYS: Record<number, number[]> = {
+  1: [1, 2, 3],
+  2: [4, 5, 6],
+  3: [7, 8, 9],
+  4: [10, 11, 12],
+  5: [13, 14],
+};
+
+const TOTAL_PHASES = 5;
+const TOTAL_PROGRAM_DAYS = 14;
 
 /**
  * Calculate the user's true calendar day in the program.
  * Day 1 = the day they started, increments by 1 each calendar day.
- * Capped at MAX_DAYS (40).
+ * Capped at TOTAL_PROGRAM_DAYS (14).
  */
 function getCalendarDay(programStartedAt: Date): number {
   const now = new Date();
@@ -32,15 +37,26 @@ function getCalendarDay(programStartedAt: Date): number {
   const startDay = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
   const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   const daysSinceStart = Math.floor((today - startDay) / 86400000);
-  return Math.min(Math.max(daysSinceStart + 1, 1), MAX_DAYS);
+  return Math.min(Math.max(daysSinceStart + 1, 1), TOTAL_PROGRAM_DAYS);
+}
+
+/**
+ * Get the phase number (1-5) for a given absolute program day (1-14).
+ */
+function getPhaseForDay(day: number): number {
+  for (const [phase, days] of Object.entries(PHASE_DAYS)) {
+    if (days.includes(day)) return Number(phase);
+  }
+  return TOTAL_PHASES; // fallback to last phase
 }
 
 /**
  * GET /api/program/progress — return user's program progress
  *
- * Content locking is based on the user's true calendar day since enrollment,
- * not just which episodes they've completed. This prevents binge-completing
- * all lessons in one sitting — one new lesson unlocks per calendar day.
+ * 14-day program with 5 phases. Content locking is based on the user's
+ * true calendar day since enrollment — one new lesson unlocks per calendar day.
+ * Sequential progression: the "current" episode is always the first uncompleted
+ * one in order, even if later episodes are unlocked.
  */
 export async function GET() {
   const { userId } = await auth();
@@ -66,13 +82,9 @@ export async function GET() {
     }
   }
 
-  // Calculate true calendar day and week
+  // Calculate true calendar day and phase
   const calendarDay = getCalendarDay(programStartedAt);
-  const calendarWeek = Math.min(
-    Math.ceil(calendarDay / DAYS_PER_WEEK),
-    TOTAL_WEEKS
-  );
-  const dayInWeek = ((calendarDay - 1) % DAYS_PER_WEEK) + 1;
+  const currentPhase = getPhaseForDay(calendarDay);
 
   // Get all program episodes (content with programWeek set)
   const episodes = await db
@@ -109,49 +121,40 @@ export async function GET() {
   const completedIds = new Set(progress.map((p) => p.lessonId));
   const totalDone = completedIds.size;
 
-  // Determine current lesson: first episode not completed that is also unlocked
-  // An episode is unlocked if its calendar position <= calendarDay
+  // Determine current lesson using sequential progression:
+  // - Episodes unlock based on calendar day (programDay <= calendarDay)
+  // - But the "current" episode is always the first uncompleted one in order
+  // - We never skip ahead: if user misses Day 2, they still see Day 2 as current
+  //   even when Day 3+ are unlocked
   let currentLesson: (typeof episodes)[number] | null = null;
   let nextLesson: (typeof episodes)[number] | null = null;
 
+  // First uncompleted episode in sequential order = the one we suggest
   for (let i = 0; i < episodes.length; i++) {
     const ep = episodes[i];
-    const epTotalDay = ((ep.programWeek || 1) - 1) * DAYS_PER_WEEK + (ep.programDay || 1);
-
-    if (!completedIds.has(String(ep.id)) && epTotalDay <= calendarDay) {
+    if (!completedIds.has(String(ep.id))) {
       currentLesson = ep;
-      // Next lesson is the one after, if also unlocked or the next to unlock
       nextLesson = episodes[i + 1] || null;
       break;
     }
   }
 
-  // If all unlocked episodes are done, point to the next one coming up
-  if (!currentLesson) {
-    for (let i = 0; i < episodes.length; i++) {
-      const ep = episodes[i];
-      if (!completedIds.has(String(ep.id))) {
-        currentLesson = ep;
-        nextLesson = episodes[i + 1] || null;
-        break;
-      }
-    }
-    // If truly all done, use last episode
-    if (!currentLesson && episodes.length > 0) {
-      currentLesson = episodes[episodes.length - 1];
-      nextLesson = null;
-    }
+  // If truly all done, use last episode
+  if (!currentLesson && episodes.length > 0) {
+    currentLesson = episodes[episodes.length - 1];
+    nextLesson = null;
   }
 
   return NextResponse.json({
     // Calendar-based position (used for content locking)
-    week: calendarWeek,
-    day: dayInWeek,
+    phase: currentPhase,
+    week: currentPhase, // backward compat — maps to phase number
     totalDay: calendarDay,
     // Completion stats
     totalDone,
     totalEpisodes: episodes.length,
-    weekTitle: WEEK_TITLES[calendarWeek] || `Week ${calendarWeek}`,
+    phaseTitle: PHASE_TITLES[currentPhase] || `Phase ${currentPhase}`,
+    weekTitle: `Phase ${currentPhase}: ${PHASE_TITLES[currentPhase] || ""}`, // backward compat
     completedIds: Array.from(completedIds),
     programStartedAt: programStartedAt.toISOString(),
     currentLesson: currentLesson
@@ -162,8 +165,8 @@ export async function GET() {
           durationMinutes: currentLesson.durationMinutes,
           audioUrl: currentLesson.audioUrl,
           programAction: currentLesson.programAction,
-          programWeek: currentLesson.programWeek,
-          programDay: currentLesson.programDay,
+          programWeek: currentLesson.programWeek, // phase number
+          programDay: currentLesson.programDay,   // absolute day 1-14
         }
       : null,
     nextLesson: nextLesson
@@ -179,7 +182,7 @@ export async function GET() {
 
 /**
  * POST /api/program/progress — mark a lesson as completed
- * Body: { lessonId: number, week: number }
+ * Body: { lessonId: number, week: number } (week = phase number for backward compat)
  */
 export async function POST(req: NextRequest) {
   const { userId } = await auth();

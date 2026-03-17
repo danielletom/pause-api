@@ -83,8 +83,8 @@ function estimatePercentile(
 function commonalityLabel(
   prevalencePct: number,
 ): 'Very common' | 'Common' | 'Less common' {
-  if (prevalencePct >= 70) return 'Very common';
-  if (prevalencePct >= 40) return 'Common';
+  if (prevalencePct > 75) return 'Very common';
+  if (prevalencePct >= 50) return 'Common';
   return 'Less common';
 }
 
@@ -335,6 +335,7 @@ export async function GET(_request: NextRequest) {
             s.cohortAvgFrequency,
             Math.round(s.cohortAvgFrequency * 1.5),
           ),
+          label: commonalityLabel(s.cohortPrevalencePct),
         };
       });
 

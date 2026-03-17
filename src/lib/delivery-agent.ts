@@ -92,6 +92,10 @@ export async function deliverInsights(
     )
     .limit(1);
 
+  // 2b. Clamp readiness adjustment to safe range
+  const readinessAdjustment = Math.max(-15, Math.min(15, Math.round(insight.readinessAdjustment ?? 0)));
+  const readinessRationale = truncateWords(insight.readinessRationale ?? '', 30);
+
   const payload = {
     userId,
     date,
@@ -101,6 +105,8 @@ export async function deliverInsights(
     forecast,
     insightNudgeTitle,
     insightNudgeBody,
+    readinessAdjustment,
+    readinessRationale,
     correlationInsightsJson: insight.correlationInsights as unknown as Record<string, unknown>[],
     helpsHurtsJson: insight.helpsHurts as unknown as Record<string, unknown>,
     symptomGuidanceJson: insight.symptomGuidance as unknown as Record<string, unknown>,
@@ -123,10 +129,10 @@ export async function deliverInsights(
     await db.insert(interpretedInsights).values(payload);
   }
 
-  // 4. Backfill computedScores.recommendation (backward compat)
+  // 4. Backfill computedScores: recommendation + apply readiness adjustment
   try {
     const scoreRows = await db
-      .select({ id: computedScores.id })
+      .select({ id: computedScores.id, readiness: computedScores.readiness })
       .from(computedScores)
       .where(
         and(eq(computedScores.userId, userId), eq(computedScores.date, date)),
@@ -134,9 +140,21 @@ export async function deliverInsights(
       .limit(1);
 
     if (scoreRows.length > 0) {
+      const currentReadiness = scoreRows[0]!.readiness;
+      const updates: Record<string, unknown> = { recommendation: homeNarrative };
+
+      // Apply the naturopath's readiness adjustment if present
+      if (readinessAdjustment !== 0 && currentReadiness != null) {
+        const adjusted = Math.min(99, Math.max(5, currentReadiness + readinessAdjustment));
+        updates.readiness = adjusted;
+        console.log(
+          `[delivery-agent] Readiness adjusted for ${userId}: ${currentReadiness} → ${adjusted} (${readinessAdjustment > 0 ? '+' : ''}${readinessAdjustment}): ${readinessRationale}`,
+        );
+      }
+
       await db
         .update(computedScores)
-        .set({ recommendation: homeNarrative })
+        .set(updates)
         .where(eq(computedScores.id, scoreRows[0]!.id));
     }
   } catch (err) {

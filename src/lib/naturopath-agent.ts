@@ -80,6 +80,10 @@ export interface NaturopathInsight {
   forecast: string;
   insightNudge: { title: string; body: string };
 
+  // Readiness score adjustment — the AI's contextual correction to the formula
+  readinessAdjustment: number; // -15 to +15
+  readinessRationale: string; // brief explanation (max 30 words)
+
   helpsHurts: {
     helps: { factor: string; symptom: string; explanation: string; strength: number }[];
     hurts: { factor: string; symptom: string; explanation: string; strength: number }[];
@@ -149,6 +153,33 @@ CORRELATION QUALITY:
 - Lag 1-2: plausible biological mechanism
 - Lag 5-7: more likely coincidence unless there's a known mechanism
 
+READINESS SCORE ADJUSTMENT:
+The app computes a raw readiness score (0-99) using a formula:
+  sleep (40%) + mood (25%) + symptoms (20%) + stressors (15%)
+This formula is mechanical and often WRONG. Your job is to adjust it.
+
+Common issues the formula gets wrong:
+- Having 5+ symptoms is NORMAL in perimenopause — formula punishes too harshly
+- Good sleep + many mild symptoms = formula says 50, should be ~65-70
+- Declining trend (scores dropping 3+ days) = formula shows today's number but misses momentum
+- Cycle phase matters: late luteal symptoms are expected, not alarming
+- Missing data defaults to 50, which drags the score down unfairly
+- High mood + poor sleep = formula averages them out, but the person may actually be doing well
+- Stressors from context tags are inconsistently logged
+
+Your readinessAdjustment should be:
+- Range: -15 to +15 (integer)
+- Positive: formula is too LOW (e.g. many mild symptoms but person is actually coping well)
+- Negative: formula is too HIGH (e.g. trend is worsening, or cycle phase will hit soon)
+- 0: formula is about right
+- Always provide a brief readinessRationale (max 30 words) explaining WHY
+
+Examples:
+- 5 mild symptoms, good sleep, good mood → adjustment: +8 ("Many symptoms are mild and well-managed; sleep quality is keeping you steady")
+- Score looks fine but 3-day declining trend → adjustment: -5 ("Downward trend over 3 days suggests tomorrow could be harder")
+- Late luteal, elevated symptoms → adjustment: +5 ("Symptoms are cycle-related and expected to ease after your period starts")
+- Poor sleep, low mood, high stressors → adjustment: 0 ("Formula accurately reflects a tough day")
+
 RULES:
 1. NEVER diagnose or say "you have [condition]"
 2. NEVER recommend starting or stopping medications — say "discuss with your doctor"
@@ -160,6 +191,8 @@ RULES:
 8. Keep weeklyStory to 2-3 sentences, under 60 words
 9. Keep forecast to 1-2 sentences, under 40 words
 10. Nudge title: max 6 words. Nudge body: max 30 words.
+11. readinessAdjustment MUST be an integer between -15 and +15.
+12. readinessRationale MUST be under 30 words.
 
 OUTPUT FORMAT:
 Return ONLY valid JSON with these exact top-level keys (no extra keys):
@@ -185,6 +218,8 @@ Return ONLY valid JSON with these exact top-level keys (no extra keys):
     "title": "Max Six Words Here",
     "body": "One actionable sentence under 30 words."
   },
+  "readinessAdjustment": 5,
+  "readinessRationale": "Symptoms are mild and well-managed despite the count; sleep quality is strong.",
   "helpsHurts": {
     "helps": [{ "factor": "exercised", "symptom": "mood_changes", "explanation": "...", "strength": 35 }],
     "hurts": [{ "factor": "alcohol", "symptom": "hot_flashes", "explanation": "...", "strength": 36 }]
@@ -206,7 +241,7 @@ Return ONLY valid JSON with these exact top-level keys (no extra keys):
   }
 }
 
-CRITICAL: You MUST populate correlationInsights for each correlation in the input data. You MUST populate helpsHurts based on direction. You MUST give a meaningful insightNudge title and body. No markdown, no code fences — raw JSON only.`;
+CRITICAL: You MUST populate correlationInsights for each correlation in the input data. You MUST populate helpsHurts based on direction. You MUST give a meaningful insightNudge title and body. You MUST provide readinessAdjustment (integer -15 to +15) and readinessRationale (under 30 words). No markdown, no code fences — raw JSON only.`;
 
 // ---------------------------------------------------------------------------
 // Build the user prompt from context
@@ -313,7 +348,7 @@ export async function interpretInsights(
 
   const { text, usage } = await generateText({
     model: openai('gpt-4o-mini'),
-    maxOutputTokens: 2500,
+    maxOutputTokens: 3000,
     temperature: 0.4,
     system: NATUROPATH_SYSTEM_PROMPT,
     prompt: userPrompt,
@@ -345,6 +380,10 @@ export async function interpretInsights(
   if (!insight.weeklyStory) insight.weeklyStory = '';
   if (!insight.forecast) insight.forecast = '';
   if (!insight.insightNudge) insight.insightNudge = { title: 'Insight', body: '' };
+  if (insight.readinessAdjustment == null) insight.readinessAdjustment = 0;
+  if (!insight.readinessRationale) insight.readinessRationale = '';
+  // Clamp readinessAdjustment to valid range
+  insight.readinessAdjustment = Math.max(-15, Math.min(15, Math.round(insight.readinessAdjustment)));
   if (!insight.helpsHurts) insight.helpsHurts = { helps: [], hurts: [] };
   if (!insight.contradictions) insight.contradictions = [];
   if (!insight.symptomGuidance) insight.symptomGuidance = {};

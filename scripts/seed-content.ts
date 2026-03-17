@@ -2,7 +2,8 @@
  * Seed the content table with all items from the Pause Content Plan.
  * Run: npx tsx scripts/seed-content.ts
  *
- * This preloads the full 8-week program (40 pieces) plus the content library.
+ * This preloads the 14-day program (14 pieces across 5 phases) plus the content library.
+ * programWeek = phase number (1-5), programDay = absolute day (1-14).
  * Audio URLs are left empty — add them via the Content Manager when files are ready.
  */
 
@@ -25,11 +26,11 @@ interface ContentSeed {
 }
 
 const programContent: ContentSeed[] = [
-  // ── WEEK 1: Your Baseline ──
+  // ── PHASE 1: Understand (Days 1–3) ──
   {
     title: "Welcome to Pause",
     contentType: "lesson", format: "audio", durationMinutes: 12,
-    description: "What perimenopause actually is, why you feel this way, and what the next 8 weeks will look like.",
+    description: "What perimenopause actually is, why you feel this way, and what the next 14 days will look like.",
     category: "Basics", tags: ["anytime", "basics"], productionTool: "NotebookLM", status: "draft",
     programWeek: 1, programDay: 1, programAction: "Take your first symptom log",
   },
@@ -47,278 +48,90 @@ const programContent: ContentSeed[] = [
     category: "Basics", tags: ["anytime", "basics"], productionTool: "NotebookLM", status: "draft",
     programWeek: 1, programDay: 3, programAction: "Log your symptoms + mood",
   },
+
+  // ── PHASE 2: Track & Sleep (Days 4–6) ──
   {
     title: "Tracking 101",
     contentType: "lesson", format: "audio", durationMinutes: 8,
     description: "How to use Pause to build your personal health picture. What to track and why it matters.",
     category: "Basics", tags: ["anytime", "basics"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 1, programDay: 4, programAction: "Complete your evening journal",
+    programWeek: 2, programDay: 4, programAction: "Complete your evening journal",
   },
   {
-    title: "Week 1 Check-in",
-    contentType: "meditation", format: "audio", durationMinutes: 10,
-    description: "Your first weekly reflection. How are you feeling? What surprised you?",
+    title: "Your First Check-in",
+    contentType: "reflection", format: "audio", durationMinutes: 10,
+    description: "Your first reflection. How are you feeling? What surprised you?",
     category: "Basics", tags: ["evening", "calm"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 1, programDay: 5, programAction: "5-min gratitude meditation",
+    programWeek: 2, programDay: 5, programAction: "5-min gratitude meditation",
   },
-
-  // ── WEEK 2: Sleep & Night Sweats ──
   {
     title: "Why Sleep Changes in Perimenopause",
     contentType: "podcast", format: "audio", durationMinutes: 20,
     description: "Expert conversation about the hormonal sleep disruption cycle — why you wake at 3am.",
     category: "Sleep", tags: ["evening", "sleep"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 2, programDay: 1, programAction: "Track your sleep environment",
+    programWeek: 2, programDay: 6, programAction: "Track your sleep environment",
   },
+
+  // ── PHASE 3: Symptoms (Days 7–9) ──
   {
     title: "The Night Sweat Toolkit",
     contentType: "lesson", format: "audio", durationMinutes: 12,
     description: "Practical strategies: bedroom temperature, fabrics, cooling techniques.",
     category: "Sleep", tags: ["evening", "sleep"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 2, programDay: 2, programAction: "Try the cooling checklist",
+    programWeek: 3, programDay: 7, programAction: "Try the cooling checklist",
   },
   {
-    title: "Building a Wind-Down Routine",
-    contentType: "lesson", format: "audio", durationMinutes: 10,
-    description: "Create a 30-minute pre-bed ritual that signals your body to sleep.",
-    category: "Sleep", tags: ["evening", "sleep", "calm"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 2, programDay: 3, programAction: "Set a wind-down alarm for tonight",
-  },
-  {
-    title: "Body Scan for Sleep",
-    contentType: "meditation", format: "audio", durationMinutes: 15,
-    description: "Progressive relaxation from head to toe. Designed for women whose minds race at bedtime.",
-    category: "Sleep", tags: ["evening", "sleep", "calm"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 2, programDay: 4, programAction: "Do this meditation before bed",
-  },
-  {
-    title: "Week 2 Check-in + Sleep Score Review",
-    contentType: "meditation", format: "audio", durationMinutes: 10,
-    description: "How did your sleep change this week? Review your sleep data and patterns.",
-    category: "Sleep", tags: ["evening", "sleep"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 2, programDay: 5, programAction: "10-min sleep meditation",
-  },
-
-  // ── WEEK 3: Hot Flash Management ──
-  {
-    title: "Understanding Your Hot Flashes",
-    contentType: "podcast", format: "audio", durationMinutes: 18,
-    description: "What triggers them, how long they last, and why some women get them worse.",
-    category: "Hot Flashes", tags: ["anytime", "hot flashes"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 3, programDay: 1, programAction: "Log any hot flashes with triggers",
-  },
-  {
-    title: "Breathing Through a Flash",
+    title: "Hot Flash Triggers & Relief",
     contentType: "lesson", format: "audio", durationMinutes: 12,
-    description: "The 4-4-6 breathing technique explained and practiced. This becomes your SOS tool.",
-    category: "Hot Flashes", tags: ["anytime", "sos", "calm"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 3, programDay: 2, programAction: "Practice the SOS breathing once",
+    description: "What triggers hot flashes, how to track them, and the 4-4-6 SOS breathing technique.",
+    category: "Hot Flashes", tags: ["anytime", "sos", "calm"], productionTool: "NotebookLM", status: "draft",
+    programWeek: 3, programDay: 8, programAction: "Practice the SOS breathing once",
   },
   {
-    title: "Food Triggers You Didn't Expect",
-    contentType: "lesson", format: "audio", durationMinutes: 10,
-    description: "Caffeine, alcohol, spicy food — but also sugar, histamines, and meal timing.",
-    category: "Nutrition", tags: ["anytime", "hot flashes", "nutrition"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 3, programDay: 3, programAction: "Note what you ate today",
-  },
-  {
-    title: "Cooling Visualization",
-    contentType: "meditation", format: "audio", durationMinutes: 12,
-    description: "Guided imagery of cool water, snow, breeze — trains your brain to modulate the heat response.",
-    category: "Hot Flashes", tags: ["anytime", "hot flashes", "calm"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 3, programDay: 4, programAction: "Try this during your next flash",
-  },
-  {
-    title: "Week 3 Check-in + Trigger Review",
-    contentType: "meditation", format: "audio", durationMinutes: 10,
-    description: "Review your trigger patterns. What correlations is Pause finding in your data?",
-    category: "Hot Flashes", tags: ["evening", "calm"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 3, programDay: 5, programAction: "5-min calming meditation",
-  },
-
-  // ── WEEK 4: Mood, Mind & Brain Fog ──
-  {
-    title: "Menopause and Your Brain",
-    contentType: "podcast", format: "audio", durationMinutes: 20,
+    title: "Mood, Anxiety & the Hormone Link",
+    contentType: "lesson", format: "audio", durationMinutes: 12,
     description: "Why brain fog, anxiety, and mood swings happen. The estrogen-serotonin connection.",
     category: "Mood", tags: ["anytime", "mind"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 4, programDay: 1, programAction: "Log your mood in detail",
-  },
-  {
-    title: "Anxiety Isn't 'Just Anxiety'",
-    contentType: "lesson", format: "audio", durationMinutes: 12,
-    description: "How to tell hormonal anxiety from situational stress. Why your doctor might be getting it wrong.",
-    category: "Mood", tags: ["anytime", "mind", "calm"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 4, programDay: 2, programAction: "Try the grounding exercise",
-  },
-  {
-    title: "Brain Fog Strategies",
-    contentType: "lesson", format: "audio", durationMinutes: 10,
-    description: "Practical cognitive tools: lists, routines, memory tricks. Exercise is the #1 brain fog fix.",
-    category: "Mood", tags: ["morning", "mind"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 4, programDay: 3, programAction: "Set up one new routine",
-  },
-  {
-    title: "Self-Compassion Meditation",
-    contentType: "meditation", format: "audio", durationMinutes: 15,
-    description: "You are not broken. A gentle guided meditation for the days when everything feels too much.",
-    category: "Mood", tags: ["evening", "calm", "mind"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 4, programDay: 4, programAction: "Journal one kind thing about yourself",
-  },
-  {
-    title: "Week 4 Check-in: Halfway!",
-    contentType: "meditation", format: "audio", durationMinutes: 12,
-    description: "You're halfway through the program. Celebrate your wins and review your mood patterns.",
-    category: "Mood", tags: ["evening", "calm"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 4, programDay: 5, programAction: "Positive affirmation audio",
+    programWeek: 3, programDay: 9, programAction: "Log your mood in detail",
   },
 
-  // ── WEEK 5: Body Changes & Movement ──
-  {
-    title: "Weight, Metabolism & Menopause",
-    contentType: "podcast", format: "audio", durationMinutes: 18,
-    description: "Why your body composition shifts, what actually works, and why crash diets make it worse.",
-    category: "Movement", tags: ["anytime", "basics"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 5, programDay: 1, programAction: "Log what you ate + energy level",
-  },
-  {
-    title: "Joint Pain & Bone Health",
-    contentType: "lesson", format: "audio", durationMinutes: 10,
-    description: "The estrogen-inflammation connection. Simple daily habits to protect your joints and bones.",
-    category: "Movement", tags: ["anytime", "basics"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 5, programDay: 2, programAction: "Try a 10-min gentle stretch",
-  },
+  // ── PHASE 4: Body & Fuel (Days 10–12) ──
   {
     title: "Exercise That Actually Helps",
     contentType: "lesson", format: "audio", durationMinutes: 12,
     description: "Strength training, walking, yoga — what the research says. Plus: the exercises to avoid.",
     category: "Movement", tags: ["morning", "energy"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 5, programDay: 3, programAction: "Plan tomorrow's movement",
+    programWeek: 4, programDay: 10, programAction: "Plan tomorrow's movement",
   },
-  {
-    title: "Morning Energy Meditation",
-    contentType: "meditation", format: "audio", durationMinutes: 10,
-    description: "Gentle activation meditation for mornings when getting out of bed feels impossible.",
-    category: "Movement", tags: ["morning", "energy"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 5, programDay: 4, programAction: "Set this as tomorrow's alarm",
-  },
-  {
-    title: "Week 5 Check-in",
-    contentType: "meditation", format: "audio", durationMinutes: 10,
-    description: "How is your body feeling compared to Week 1? Review your symptom trends.",
-    category: "Movement", tags: ["evening", "calm"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 5, programDay: 5, programAction: "Body gratitude meditation",
-  },
-
-  // ── WEEK 6: Nutrition & Fuel ──
   {
     title: "Eating for Perimenopause",
-    contentType: "podcast", format: "audio", durationMinutes: 20,
+    contentType: "lesson", format: "audio", durationMinutes: 12,
     description: "Anti-inflammatory foods, phytoestrogens, gut health. What to eat more of and what to reduce.",
     category: "Nutrition", tags: ["anytime", "nutrition"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 6, programDay: 1, programAction: "Review your fridge against the list",
-  },
-  {
-    title: "The Gut-Hormone Connection",
-    contentType: "lesson", format: "audio", durationMinutes: 12,
-    description: "Why bloating got worse and what your microbiome has to do with estrogen metabolism.",
-    category: "Nutrition", tags: ["anytime", "nutrition"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 6, programDay: 2, programAction: "Try one gut-friendly swap",
-  },
-  {
-    title: "Meal Timing & Blood Sugar",
-    contentType: "lesson", format: "audio", durationMinutes: 10,
-    description: "Why when you eat matters as much as what. Blood sugar crashes and hot flash connections.",
-    category: "Nutrition", tags: ["anytime", "nutrition"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 6, programDay: 3, programAction: "No eating 3 hours before bed",
+    programWeek: 4, programDay: 11, programAction: "Review your fridge against the list",
   },
   {
     title: "Supplements: What Works",
     contentType: "lesson", format: "audio", durationMinutes: 12,
     description: "Evidence-based supplement guide: magnesium, vitamin D, omega-3, black cohosh.",
     category: "Nutrition", tags: ["anytime", "nutrition"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 6, programDay: 4, programAction: "Check your supplement stack",
-  },
-  {
-    title: "Week 6 Check-in + Shopping List",
-    contentType: "meditation", format: "audio", durationMinutes: 10,
-    description: "Review your nutrition patterns. Download your personalized menopause shopping list.",
-    category: "Nutrition", tags: ["evening", "calm", "nutrition"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 6, programDay: 5, programAction: "Mindful eating meditation",
+    programWeek: 4, programDay: 12, programAction: "Check your supplement stack",
   },
 
-  // ── WEEK 7: Relationships, Work & Identity ──
-  {
-    title: "Talking to Your Partner",
-    contentType: "podcast", format: "audio", durationMinutes: 18,
-    description: "How to explain what you're going through. Scripts for the conversation you've been avoiding.",
-    category: "Relationships", tags: ["anytime", "basics"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 7, programDay: 1, programAction: "Share one thing with someone",
-  },
-  {
-    title: "Menopause at Work",
-    contentType: "lesson", format: "audio", durationMinutes: 12,
-    description: "Managing symptoms in meetings, dealing with brain fog at your desk, knowing your rights.",
-    category: "Relationships", tags: ["morning", "basics"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 7, programDay: 2, programAction: "Plan one work accommodation",
-  },
-  {
-    title: "Sexual Health & Intimacy",
-    contentType: "lesson", format: "audio", durationMinutes: 12,
-    description: "Libido changes, vaginal dryness, and reconnecting with your body. Frank, practical, shame-free.",
-    category: "Relationships", tags: ["anytime", "basics"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 7, programDay: 3, programAction: "Journal about intimacy",
-  },
-  {
-    title: "Who Am I Now? Meditation",
-    contentType: "meditation", format: "audio", durationMinutes: 15,
-    description: "Identity meditation for the woman in transition. You're not losing yourself — you're becoming.",
-    category: "Relationships", tags: ["evening", "calm", "mind"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 7, programDay: 4, programAction: "Write your 3-word intention",
-  },
-  {
-    title: "Week 7 Check-in",
-    contentType: "meditation", format: "audio", durationMinutes: 10,
-    description: "How have your relationships shifted? What boundaries have you set?",
-    category: "Relationships", tags: ["evening", "calm"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 7, programDay: 5, programAction: "Loving-kindness meditation",
-  },
-
-  // ── WEEK 8: Your Path Forward ──
+  // ── PHASE 5: Your Plan (Days 13–14) ──
   {
     title: "Talking to Your Doctor",
-    contentType: "podcast", format: "audio", durationMinutes: 20,
+    contentType: "lesson", format: "audio", durationMinutes: 15,
     description: "How to prepare for the HRT conversation. What to ask, what to bring, how to advocate.",
     category: "Treatment", tags: ["anytime", "basics"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 8, programDay: 1, programAction: "Build your doctor prep sheet",
+    programWeek: 5, programDay: 13, programAction: "Build your doctor prep sheet",
   },
   {
-    title: "HRT: The Full Picture",
-    contentType: "lesson", format: "audio", durationMinutes: 15,
-    description: "Risks, benefits, types, and who it's right for. Evidence-based, balanced, no agenda.",
-    category: "Treatment", tags: ["anytime", "basics"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 8, programDay: 2, programAction: "Write your questions for your doctor",
-  },
-  {
-    title: "Building Your Long-Term Plan",
-    contentType: "lesson", format: "audio", durationMinutes: 12,
-    description: "What to keep tracking, when to check in, how to use your Pause data going forward.",
-    category: "Wellness", tags: ["anytime", "basics"], productionTool: "NotebookLM", status: "draft",
-    programWeek: 8, programDay: 3, programAction: "Set your 3-month goals",
-  },
-  {
-    title: "Manifestation & Future Self",
-    contentType: "meditation", format: "audio", durationMinutes: 15,
-    description: "Visualize the woman you're becoming. Positive affirmations grounded in everything you've learned.",
-    category: "Wellness", tags: ["evening", "calm"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 8, programDay: 4, programAction: "Listen before sleep",
-  },
-  {
-    title: "Graduation!",
-    contentType: "meditation", format: "audio", durationMinutes: 12,
-    description: "You did it. Review your full 8-week journey: symptoms then vs now, patterns discovered, wins celebrated.",
+    title: "Your Personal Toolkit — Graduation!",
+    contentType: "reflection", format: "audio", durationMinutes: 12,
+    description: "You did it! Review your 14-day journey: symptoms then vs now, patterns discovered, wins celebrated.",
     category: "Wellness", tags: ["anytime", "calm"], productionTool: "Wondercraft", status: "draft",
-    programWeek: 8, programDay: 5, programAction: "Share your story (optional)",
+    programWeek: 5, programDay: 14, programAction: "Share your story (optional)",
   },
 ];
 
@@ -394,12 +207,12 @@ async function seed() {
     });
     created++;
 
-    const prefix = item.programWeek ? `W${item.programWeek}D${item.programDay}` : "LIB";
+    const prefix = item.programWeek ? `P${item.programWeek}D${item.programDay}` : "LIB";
     console.log(`  ${prefix} | ${item.contentType.padEnd(11)} | ${item.title}`);
   }
 
   console.log(`\n✅ Created ${created} content items`);
-  console.log(`   - ${programContent.length} program items (8 weeks × 5 days)`);
+  console.log(`   - ${programContent.length} program items (14 days × 5 phases)`);
   console.log(`   - ${libraryContent.length} library items`);
   console.log("\n📝 Audio URLs are empty — add them via the Content Manager when files are ready.");
   process.exit(0);
