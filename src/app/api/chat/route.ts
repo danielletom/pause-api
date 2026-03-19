@@ -1,7 +1,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { dailyLogs, profiles, medications, correlations } from '@/db/schema';
+import { dailyLogs, profiles, medications, userCorrelations as correlationsTable } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
@@ -17,9 +17,9 @@ async function buildUserContext(userId: string) {
       .orderBy(desc(dailyLogs.date))
       .limit(14),
     db.select().from(medications).where(eq(medications.userId, userId)),
-    db.select().from(correlations)
-      .where(eq(correlations.userId, userId))
-      .orderBy(desc(correlations.effectSizePct))
+    db.select().from(correlationsTable)
+      .where(eq(correlationsTable.userId, userId))
+      .orderBy(desc(correlationsTable.effectSizePct))
       .limit(10),
   ]);
 
@@ -45,12 +45,12 @@ async function buildUserContext(userId: string) {
   const helps = userCorrelations
     .filter(c => c.direction === 'negative')
     .slice(0, 4)
-    .map(c => `${c.factor?.replace(/_/g, ' ')} reduces ${c.symptom?.replace(/_/g, ' ')} by ${c.effectSizePct}%`);
+    .map(c => `${c.factorA?.replace(/_/g, ' ')} reduces ${c.factorB?.replace(/_/g, ' ')} by ${c.effectSizePct}%`);
 
   const hurts = userCorrelations
     .filter(c => c.direction === 'positive')
     .slice(0, 4)
-    .map(c => `${c.factor?.replace(/_/g, ' ')} increases ${c.symptom?.replace(/_/g, ' ')} by ${c.effectSizePct}%`);
+    .map(c => `${c.factorA?.replace(/_/g, ' ')} increases ${c.factorB?.replace(/_/g, ' ')} by ${c.effectSizePct}%`);
 
   const medsList = userMeds.map(m => `${m.name}${m.dosage ? ` (${m.dosage})` : ''}`);
 
