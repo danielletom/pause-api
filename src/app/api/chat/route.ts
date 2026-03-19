@@ -52,16 +52,16 @@ async function buildUserContext(userId: string) {
     .slice(0, 4)
     .map(c => `${c.factorA?.replace(/_/g, ' ')} increases ${c.factorB?.replace(/_/g, ' ')} by ${c.effectSizePct}%`);
 
-  const medsList = userMeds.map(m => `${m.name}${m.dosage ? ` (${m.dosage})` : ''}`);
+  const medsList = userMeds.map(m => `${m.name}${m.dose ? ` (${m.dose})` : ''}`);
 
   const todayLog = recentLogs.find(l => l.date === today);
   const todaySymptoms = todayLog?.symptomsJson as Record<string, number> | null;
 
   return `
 USER PROFILE:
-- Name: ${profile?.firstName || 'User'}
-- Stage: ${profile?.menopauseStage || 'perimenopause'}
-- Age group: ${profile?.ageRange || 'unknown'}
+- Name: ${profile?.name || 'User'}
+- Stage: ${profile?.stage || 'perimenopause'}
+- Age group: ${(profile as any)?.ageRange || 'unknown'}
 - Tracking for: ${recentLogs.length} days
 
 THIS WEEK (last 7 days):
@@ -116,15 +116,12 @@ export async function POST(req: NextRequest) {
         content: m.content,
       })),
       temperature: 0.7,
-      maxTokens: 800,
+      maxOutputTokens: 800,
     });
 
     return NextResponse.json({
       message: result.text,
-      usage: {
-        promptTokens: result.usage?.promptTokens,
-        completionTokens: result.usage?.completionTokens,
-      },
+      usage: result.usage,
     });
   } catch (error: any) {
     console.error('Chat error:', error);
