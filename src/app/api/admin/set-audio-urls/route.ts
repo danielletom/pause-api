@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { content } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -29,10 +29,16 @@ const audioMap: Record<string, string> = {
   "self-compassion-practice": "/audio/meditations/self-compassion-practice.mp3",
 };
 
-export async function POST() {
-  const { userId } = await auth();
-  if (!userId)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(request: NextRequest) {
+  // Allow CRON_SECRET or Clerk auth
+  const authHeader = request.headers.get("authorization");
+  const isCron = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+
+  if (!isCron) {
+    const { userId } = await auth();
+    if (!userId)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const allItems = await db
     .select({ id: content.id, slug: content.slug, title: content.title, audioUrl: content.audioUrl })
