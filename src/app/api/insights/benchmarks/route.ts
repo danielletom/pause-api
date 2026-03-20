@@ -314,8 +314,8 @@ export async function GET(_request: NextRequest) {
   }
 
   try {
-    // 1. Get user's daily logs for last 90 days
-    const cutoff28 = daysAgo(90);
+    // 1. Get user's daily logs for last 365 days (rolling year)
+    const cutoff28 = daysAgo(365);
     const userLogs = await db
       .select({
         date: sql<string>`${dailyLogs.date}::text`,
