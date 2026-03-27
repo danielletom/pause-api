@@ -6,12 +6,13 @@ import { eq, and } from 'drizzle-orm';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const medId = parseInt(params.id);
+  const { id } = await params;
+  const medId = parseInt(id);
   if (isNaN(medId)) {
     return NextResponse.json({ error: 'Invalid medication ID' }, { status: 400 });
   }
