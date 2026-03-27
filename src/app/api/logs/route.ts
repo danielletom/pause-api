@@ -1,4 +1,4 @@
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { dailyLogs } from '@/db/schema';
@@ -61,4 +61,35 @@ export async function POST(request: NextRequest) {
     .returning();
 
   return NextResponse.json(newLog[0], { status: 201 });
+}
+
+export async function PUT(request: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const body = await request.json();
+  const { id, symptomsJson, mood, energy, sleepHours, sleepQuality, notes } = body;
+
+  if (!id) return NextResponse.json({ error: 'Log ID is required' }, { status: 400 });
+
+  // Build update object with only provided fields
+  const updateData: any = {};
+  if (symptomsJson !== undefined) updateData.symptomsJson = symptomsJson;
+  if (mood !== undefined) updateData.mood = mood;
+  if (energy !== undefined) updateData.energy = energy;
+  if (sleepHours !== undefined) updateData.sleepHours = sleepHours;
+  if (sleepQuality !== undefined) updateData.sleepQuality = sleepQuality;
+  if (notes !== undefined) updateData.notes = notes;
+
+  const updatedLog = await db
+    .update(dailyLogs)
+    .set(updateData)
+    .where(and(eq(dailyLogs.id, id), eq(dailyLogs.userId, userId)))
+    .returning();
+
+  if (updatedLog.length === 0) {
+    return NextResponse.json({ error: 'Log not found' }, { status: 404 });
+  }
+
+  return NextResponse.json(updatedLog[0]);
 }

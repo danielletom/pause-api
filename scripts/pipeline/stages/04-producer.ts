@@ -131,13 +131,11 @@ export async function produce(contentId: number): Promise<string> {
       tempFiles.push(withOutroPath);
     }
 
-    // Step 4: Mix ambient music for meditations/affirmations (if music file exists)
-    if (
-      ["meditation", "affirmation"].includes(item.contentType) &&
-      getAmbientMusicPath()
-    ) {
-      const musicPath = getAmbientMusicPath()!;
-      if (fs.existsSync(musicPath)) {
+    // Step 4: Mix background music for meditations/affirmations
+    if (["meditation", "affirmation"].includes(item.contentType)) {
+      const musicPath = getMusicForItem(item);
+      if (musicPath && fs.existsSync(musicPath)) {
+        console.log(`  [producer] Mixing music: ${path.basename(musicPath)}`);
         const mixedPath = path.join(producedDir, `${slug}-mixed.mp3`);
         const volume = production.ambientMusicVolume;
         execSync(
@@ -215,6 +213,67 @@ function getOutroPath(contentType: string): string | null {
     affirmation: path.join(assetsDir, "outro-meditation.mp3"),
   };
   return map[contentType] || null;
+}
+
+/**
+ * Music library — maps meditation categories/moods to specific tracks.
+ * Falls back to a random track from the library if no match.
+ */
+const MUSIC_MAP: Record<string, string> = {
+  // Category-based mapping
+  "sleep": "Onyx Music - Lucidity.mp3",
+  "mood": "Master Minded - Observing with Love.mp3",
+  "hot flashes": "Onyx Music - Open Space.mp3",
+  "wellness": "Master Minded - Bliss.mp3",
+  "movement": "Master Minded - Presence.mp3",
+  "relationships": "Roseblue - A Love That Fades.mp3",
+  // Keyword-based mapping (matched against title)
+  "grounding": "Master Minded - Samsarah.mp3",
+  "breath": "Onyx Music - Breath Within.mp3",
+  "wind-down": "Onyx Music - Lucidity.mp3",
+  "loving-kindness": "Master Minded - Observing with Love.mp3",
+  "gratitude": "Master Minded - Bliss.mp3",
+  "calm": "Onyx Music - Open Space.mp3",
+  "relaxation": "Onyx Music - Parallel Dimension.mp3",
+  "cooling": "Kyle Preston - Coral Castles.mp3",
+  "confidence": "Master Minded - Presence.mp3",
+  "self-love": "Roseblue - Lieu Despoir.mp3",
+  "compassion": "Roseblue - A Love That Fades.mp3",
+  "becoming": "Master Minded - Samsarah.mp3",
+  "power": "Master Minded - Presence.mp3",
+  "resilience": "Master Minded - Samsarah.mp3",
+  "acceptance": "Master Minded - Observing with Love.mp3",
+  "energy": "Onyx Music - Breath Within.mp3",
+  "manifestation": "Onyx Music - Parallel Dimension.mp3",
+};
+
+function getMusicForItem(item: ContentItem): string | null {
+  const musicDir = path.join(paths.dataRoot, "assets", "music");
+  if (!fs.existsSync(musicDir)) return getAmbientMusicPath();
+
+  const files = fs.readdirSync(musicDir).filter((f) => f.endsWith(".mp3"));
+  if (files.length === 0) return getAmbientMusicPath();
+
+  const slug = (item.slug || item.title).toLowerCase();
+  const category = (item.category || "").toLowerCase();
+
+  // Try category match first
+  if (MUSIC_MAP[category]) {
+    const match = path.join(musicDir, MUSIC_MAP[category]);
+    if (fs.existsSync(match)) return match;
+  }
+
+  // Try keyword match against title/slug
+  for (const [keyword, filename] of Object.entries(MUSIC_MAP)) {
+    if (slug.includes(keyword)) {
+      const match = path.join(musicDir, filename);
+      if (fs.existsSync(match)) return match;
+    }
+  }
+
+  // Fallback: pick a consistent random track based on content ID
+  const index = (item.id || 0) % files.length;
+  return path.join(musicDir, files[index]);
 }
 
 function getAmbientMusicPath(): string | null {

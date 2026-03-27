@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth';
 import { db } from '@/db';
 import { dailyLogs, userCorrelations, interpretedInsights } from '@/db/schema';
 import { eq, and, desc, countDistinct, max, sql } from 'drizzle-orm';

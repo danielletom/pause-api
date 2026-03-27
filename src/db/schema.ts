@@ -371,6 +371,21 @@ export const interpretedInsights = pgTable("interpreted_insights", {
   computedAt: timestamp("computed_at").defaultNow(),
 });
 
+// ── Report Shares ──────────────────────────────────────────────────────────
+// Doctor report share links for sharing with healthcare providers
+export const reportShares = pgTable("report_shares", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  token: text("token").unique().notNull(),
+  reportData: jsonb("report_data").notNull(),
+  recipientEmail: text("recipient_email"),
+  recipientName: text("recipient_name"),
+  expiresAt: timestamp("expires_at"),
+  accessCount: integer("access_count").default(0),
+  lastAccessedAt: timestamp("last_accessed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // ── Waitlist ────────────────────────────────────────────────────────────────
 // Product interest / waitlist signups (e.g. supplement)
 export const waitlist = pgTable("waitlist", {
