@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       if (!medLogsByDate.has(ml.date)) {
         medLogsByDate.set(ml.date, new Map());
       }
-      medLogsByDate.get(ml.date)!.set(ml.medicationId, ml.taken);
+      medLogsByDate.get(ml.date)!.set(ml.medicationId, ml.taken ?? false);
     });
 
     // Build CSV rows
